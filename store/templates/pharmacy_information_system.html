@@ -1,0 +1,2446 @@
+<!DOCTYPE html>
+<html lang="kk" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PharmaCare Pro - Дәріхана Ақпараттық Жүйесі / Pharmacy Information System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Leaflet (client demo map only) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- MapLibre: Django GPS on the admin tab; separate from Leaflet demo client map -->
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.css">
+    <script src="https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        medical: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                        },
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        #map {
+            height: 350px;
+            width: 100%;
+            border-radius: 1rem;
+        }
+        .map-error-notice { position:absolute;z-index:1000;left:12px;right:12px;bottom:28px;background:#fff7ed;color:#9a3412;border:1px solid #fdba74;border-radius:12px;padding:12px;font-size:12px;pointer-events:none; }
+        #adminMap {
+            height: 440px;
+            min-height: 350px;
+            width: 100%;
+            border-radius: 1rem;
+            background: #e2e8f0;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen flex flex-col justify-between">
+
+    <!-- Top Notification Banner -->
+    <div id="topBanner" class="bg-gradient-to-r from-medical-700 to-brand-600 text-white text-xs sm:text-sm py-2 px-4 text-center font-medium shadow-inner flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2 mx-auto">
+            <i class="fa-solid fa-clock"></i>
+            <span data-i18n="bannerHours">Жұмыс уақыты: Тәулік бойы (24/7 ашық). Жеткізу 30 минутта!</span>
+        </div>
+        <div class="hidden sm:flex items-center gap-2 text-xs bg-white/10 px-3 py-1 rounded-lg">
+            <i class="fa-brands fa-whatsapp text-emerald-400 text-base"></i>
+            <a id="topWhatsapp" href="#" target="_blank" rel="noopener">WhatsApp: нөмірді баптаңыз</a>
+        </div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-slate-100">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <div class="flex items-center gap-3 cursor-pointer" onclick="navigateHome()">
+                <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-medical-600 to-emerald-400 flex items-center justify-center text-white shadow-md shadow-medical-500/20">
+                    <i class="fa-solid fa-kit-medical text-xl"></i>
+                </div>
+                <div>
+                    <span class="text-xl font-bold bg-gradient-to-r from-medical-700 to-brand-600 bg-clip-text text-transparent">PharmaCare Pro</span>
+                    <span class="block text-xs font-medium text-slate-400" data-i18n="logoSub">Дәріхана Ақпараттық Жүйесі</span>
+                </div>
+            </div>
+
+            <!-- Desktop Nav Links -->
+            <nav class="hidden md:flex items-center gap-8 font-medium text-sm text-slate-600">
+                <a href="#home" onclick="navigateHome()" class="hover:text-medical-600 transition" data-i18n="navHome">Басты бет</a>
+                <a href="#catalog" onclick="openCatalogDirect()" class="hover:text-medical-600 transition" data-i18n="navCatalog">Дәрілер каталогы</a>
+                <a href="#about" onclick="scrollToAbout()" class="hover:text-medical-600 transition" data-i18n="navAbout">Біз туралы</a>
+                <a href="#contacts" onclick="scrollToContacts()" class="hover:text-medical-600 transition" data-i18n="navContact">Байланыс</a>
+            </nav>
+
+            <!-- Actions & Lang Switcher -->
+            <div class="flex items-center gap-3 sm:gap-4">
+                <!-- Language Selector -->
+                <div class="relative">
+                    <select id="langSelector" onchange="changeLanguage(this.value)" class="bg-slate-100 border border-slate-200 text-slate-700 text-xs sm:text-sm font-semibold rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-medical-500 cursor-pointer transition">
+                        <option value="kk">🇰🇿 Қаз</option>
+                        <option value="ru">🇷🇺 Рус</option>
+                        <option value="en">🇬🇧 Eng</option>
+                    </select>
+                </div>
+
+                <!-- Auth Buttons or User/Admin Profile -->
+                <div id="authActions" class="flex items-center gap-2">
+                    <button onclick="openModal('loginModal')" class="px-4 py-2 text-xs sm:text-sm font-semibold text-medical-700 hover:bg-medical-50 rounded-lg transition" data-i18n="btnLogin">Кіру</button>
+                    <button onclick="openModal('registerModal')" class="px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-medical-600 hover:bg-medical-700 rounded-lg shadow-md shadow-medical-500/20 transition" data-i18n="btnRegister">Тіркелу</button>
+                </div>
+
+                <!-- Client Profile Dropdown (Hidden initially) -->
+                <div id="userProfileArea" class="hidden items-center gap-3 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                    <div class="w-9 h-9 rounded-full bg-medical-100 text-medical-700 font-bold flex items-center justify-center text-sm shadow-sm" id="userAvatar">U</div>
+                    <div class="hidden sm:block text-left">
+                        <p class="text-xs font-bold text-slate-800" id="userNameDisplay">Қолданушы</p>
+                        <span class="text-[10px] text-medical-600 font-semibold" data-i18n="clientStatus">Клиент</span>
+                    </div>
+                    <!-- My Orders Button -->
+                    <button onclick="openOrdersModal()" class="relative ml-1 p-2 text-slate-600 hover:text-medical-600 transition" title="Менің тапсырыстарым">
+                        <i class="fa-solid fa-box-archive text-lg"></i>
+                    </button>
+                    <button onclick="openTrackingModal()" class="p-2 text-slate-600 hover:text-medical-600" title="Жеткізуді қадағалау"><i class="fa-solid fa-map-location-dot text-lg"></i></button>
+                    <!-- Cart Button -->
+                    <button onclick="openCartModal()" class="relative ml-1 p-2 text-slate-600 hover:text-medical-600 transition" title="Себет">
+                        <i class="fa-solid fa-cart-shopping text-lg"></i>
+                        <span id="cartBadge" class="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center font-bold shadow">0</span>
+                    </button>
+                    <button onclick="logoutUser()" class="p-2 text-slate-400 hover:text-rose-600 transition" title="Жүйеден шығу">
+                        <i class="fa-solid fa-right-from-bracket text-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Admin Profile Dropdown (Hidden initially) -->
+                <div id="adminProfileArea" class="hidden items-center gap-3 bg-slate-900 text-white px-3 py-1.5 rounded-xl">
+                    <div class="w-9 h-9 rounded-full bg-brand-600 text-white font-bold flex items-center justify-center text-sm shadow-sm">
+                        <i class="fa-solid fa-user-shield"></i>
+                    </div>
+                    <div class="hidden sm:block text-left">
+                        <p class="text-xs font-bold text-white">Администратор</p>
+                        <span class="text-[10px] text-brand-400 font-semibold">PharmaCare Pro</span>
+                    </div>
+                    <button onclick="openAdminDashboard()" class="ml-2 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold rounded-lg transition">
+                        <i class="fa-solid fa-gauge mr-1"></i> <span data-i18n="adminPanelBtn">Панель</span>
+                    </button>
+                    <button onclick="logoutUser()" class="p-2 text-slate-400 hover:text-rose-400 transition" title="Жүйеден шығу">
+                        <i class="fa-solid fa-right-from-bracket text-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Mobile Menu Button -->
+                <button onclick="toggleMobileMenu()" class="md:hidden p-2 text-slate-600 hover:text-medical-600">
+                    <i class="fa-solid fa-bars text-xl"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Nav Menu -->
+        <div id="mobileMenu" class="hidden md:hidden bg-white border-b border-slate-100 px-4 py-4 space-y-3 shadow-lg">
+            <a href="#home" onclick="toggleMobileMenu(); navigateHome();" class="block font-medium text-slate-700 hover:text-medical-600" data-i18n="navHome">Басты бет</a>
+            <a href="#catalog" onclick="toggleMobileMenu(); openCatalogDirect();" class="block font-medium text-slate-700 hover:text-medical-600" data-i18n="navCatalog">Дәрілер каталогы</a>
+            <a href="#about" onclick="toggleMobileMenu(); scrollToAbout();" class="block font-medium text-slate-700 hover:text-medical-600" data-i18n="navAbout">Біз туралы</a>
+            <a href="#contacts" onclick="toggleMobileMenu(); scrollToContacts();" class="block font-medium text-slate-700 hover:text-medical-600" data-i18n="navContact">Байланыс</a>
+        </div>
+    </header>
+
+    <!-- Main Content Wrapper -->
+    <main class="flex-grow">
+
+        <!-- VIEW 1: LANDING & ABOUT US PAGE -->
+        <div id="landingView" class="fade-in">
+            <!-- Hero Section -->
+            <section class="relative bg-gradient-to-b from-medical-50/60 via-white to-white py-16 lg:py-24 overflow-hidden">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+                    <div class="lg:col-span-7 space-y-6 text-center lg:text-left">
+                        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-medical-100 text-medical-800 text-xs sm:text-sm font-semibold">
+                            <i class="fa-solid fa-shield-heart"></i>
+                            <span data-i18n="heroBadge">Сертификатталған және қауіпсіз дәрі-дәрмектер 24/7</span>
+                        </div>
+                        <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-slate-900 tracking-tight leading-tight" data-i18n="heroTitle">
+                            Сіздің денсаулығыңыз – біздің басты құндылығымыз
+                        </h1>
+                        <p class="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto lg:mx-0" data-i18n="heroSubtitle">
+                            Заманауи дәріхана ақпараттық жүйесі арқылы 15 санаттағы 300-ден астам дәрі-дәрмектерді оңай тауып, үйіңізге немесе дәріханамыздан алып кетуге тапсырыс беріңіз.
+                        </p>
+                        <div class="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 pt-4">
+                            <button onclick="openCatalogDirect()" class="w-full sm:w-auto px-8 py-4 bg-medical-600 hover:bg-medical-700 text-white font-semibold rounded-xl shadow-lg shadow-medical-500/30 flex items-center justify-center gap-3 transition transform hover:-translate-y-0.5">
+                                <span data-i18n="heroBtnCatalog">Дәрілерді қарау</span>
+                                <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                            <button onclick="openModal('registerModal')" class="w-full sm:w-auto px-8 py-4 bg-white border-2 border-slate-200 hover:border-medical-600 text-slate-700 hover:text-medical-600 font-semibold rounded-xl transition">
+                                <span data-i18n="heroBtnAccount">Жеке кабинет ашу</span>
+                            </button>
+                        </div>
+                        <!-- Quick Stats -->
+                        <div class="grid grid-cols-3 gap-4 pt-8 border-t border-slate-200/80 text-center lg:text-left">
+                            <div>
+                                <h3 class="text-2xl sm:text-3xl font-extrabold text-medical-700">15+</h3>
+                                <p class="text-xs sm:text-sm text-slate-500" data-i18n="statCategories">Санаттар</p>
+                            </div>
+                            <div>
+                                <h3 class="text-2xl sm:text-3xl font-extrabold text-brand-600">300+</h3>
+                                <p class="text-xs sm:text-sm text-slate-500" data-i18n="statMedicines">Дәрі түрлері</p>
+                            </div>
+                            <div>
+                                <h3 class="text-2xl sm:text-3xl font-extrabold text-medical-700">24/7</h3>
+                                <p class="text-xs sm:text-sm text-slate-500" data-i18n="statSupport">Жұмыс уақыты</p>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Hero Image / Illustration -->
+                    <div class="lg:col-span-5 relative">
+                        <div class="relative mx-auto max-w-md lg:max-w-none">
+                            <div class="absolute -inset-1 rounded-3xl bg-gradient-to-r from-medical-600 to-brand-500 opacity-20 blur-xl"></div>
+                            <div class="relative bg-white p-6 rounded-3xl border border-slate-100 shadow-xl space-y-6">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-xl bg-medical-50 text-medical-600 flex items-center justify-center font-bold">
+                                            <i class="fa-solid fa-pills text-lg"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-bold text-sm text-slate-800" data-i18n="cardFastOrder">Жылдам тапсырыс</h4>
+                                            <span class="text-xs text-slate-400" data-i18n="cardFastSub">Лицензияланған өнімдер</span>
+                                        </div>
+                                    </div>
+                                    <span class="px-2.5 py-1 bg-medical-50 text-medical-700 rounded-full text-xs font-bold" data-i18n="activeBadge">24/7 Ашық</span>
+                                </div>
+                                <div class="bg-slate-50 p-4 rounded-2xl space-y-3 border border-slate-100">
+                                    <div class="flex justify-between items-center text-xs font-semibold text-slate-500">
+                                        <span data-i18n="cardCategoryLabel">Танымал санаттар</span>
+                                        <span class="text-medical-600" data-i18n="cardAll">Барлығы</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2 text-xs font-medium text-slate-700">
+                                        <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center gap-2">
+                                            <i class="fa-solid fa-capsules text-medical-600"></i>
+                                            <span data-i18n="catPain">Ауырғанды басатын</span>
+                                        </div>
+                                        <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center gap-2">
+                                            <i class="fa-solid fa-carrot text-amber-500"></i>
+                                            <span data-i18n="catVitamins">Витаминдер</span>
+                                        </div>
+                                        <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center gap-2">
+                                            <i class="fa-solid fa-shield-virus text-brand-600"></i>
+                                            <span data-i18n="catAntibiotics">Антибиотиктер</span>
+                                        </div>
+                                        <div class="bg-white p-2.5 rounded-xl border border-slate-200 flex items-center gap-2">
+                                            <i class="fa-solid fa-heart-pulse text-rose-500"></i>
+                                            <span data-i18n="catCardio">Жүрек-қан тамырлары</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Pharmacy Address & Hours Card -->
+                                <div class="p-3 bg-medical-50/80 rounded-2xl border border-medical-100 space-y-1">
+                                    <div class="flex items-center gap-2 text-medical-700 font-bold text-xs">
+                                        <i class="fa-solid fa-location-dot"></i>
+                                        <span data-i18n="pharmacyAddressTitle">Дәріхана мекенжайы:</span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-600 pl-5" data-i18n="footerAddress">Алматы қаласы, Абай даңғылы 150 (Тәулік бойы)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ABOUT US SECTION -->
+            <section id="about" class="py-20 bg-slate-100/70 border-y border-slate-200/60">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div class="text-center max-w-3xl mx-auto space-y-4 mb-16">
+                        <span class="px-3 py-1 rounded-full bg-brand-100 text-brand-800 text-xs font-bold uppercase tracking-wider" data-i18n="aboutTag">Біз туралы</span>
+                        <h2 class="text-3xl sm:text-4xl font-extrabold text-slate-900" data-i18n="aboutTitle">PharmaCare Pro жүйесі жайлы</h2>
+                        <p class="text-base text-slate-600" data-i18n="aboutDesc">
+                            Біздің дәріхана ақпараттық жүйесі пациенттерге ең жоғары сапалы медикаменттерді қолжетімді бағамен, рецептілік бақылаумен және курьерлік жеткізумен қамтамасыз етеді.
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200/80 space-y-4 hover:shadow-md transition">
+                            <div class="w-14 h-14 rounded-2xl bg-medical-50 text-medical-600 flex items-center justify-center text-2xl shadow-inner">
+                                <i class="fa-solid fa-medal"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-900" data-i18n="aboutFeature1Title">Жоғары сапа стандарты</h3>
+                            <p class="text-sm text-slate-600 leading-relaxed" data-i18n="aboutFeature1Desc">
+                                Барлық дәрі-дәрмектер халықаралық сапа стандарттарына сай және тек сенімді фармацевтикалық зауыттардан жеткізіледі.
+                            </p>
+                        </div>
+                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200/80 space-y-4 hover:shadow-md transition">
+                            <div class="w-14 h-14 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-2xl shadow-inner">
+                                <i class="fa-solid fa-truck-ramp-box"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-900" data-i18n="aboutFeature2Title">Жылдам және қауіпсіз жеткізу</h3>
+                            <p class="text-sm text-slate-600 leading-relaxed" data-i18n="aboutFeature2Desc">
+                                Қала бойынша курьерлік қызмет арқылы температуралық режимді қатаң сақтай отырып, 30 минут ішінде жеткіземіз.
+                            </p>
+                        </div>
+                        <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200/80 space-y-4 hover:shadow-md transition">
+                            <div class="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-2xl shadow-inner">
+                                <i class="fa-solid fa-user-shield"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-slate-900" data-i18n="aboutFeature3Title">Рецепт пен қауіпсіздік</h3>
+                            <p class="text-sm text-slate-600 leading-relaxed" data-i18n="aboutFeature3Desc">
+                                Рецепттік дәрілер тек дәгердің рұқсаты немесе жүйеге жүктелген рецепт негізінде қатаң түрде беріледі.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- VIEW 2: CLIENT DASHBOARD & MEDICINE CATALOG -->
+        <div id="catalogView" class="hidden fade-in py-8">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+                
+                <!-- Welcome & Search Bar Header -->
+                <div class="bg-gradient-to-r from-medical-700 to-brand-600 rounded-3xl p-6 sm:p-10 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div class="space-y-2 text-center md:text-left">
+                        <span class="px-3 py-1 rounded-full bg-white/20 text-white text-xs font-bold" data-i18n="clientDashboardBadge">Клиент кабинеті</span>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold" id="welcomeUserTitle">Қош келдіңіз, Клиент!</h2>
+                        <p class="text-sm text-medical-100 max-w-xl" data-i18n="clientDashboardSub">Қажетті 15 санаттағы мыңдаған дәрі-дәрмектерді іздеп, ұқсас баламаларды көріп, себетке қосыңыз.</p>
+                    </div>
+                    <!-- Search Input -->
+                    <div class="w-full md:w-96 relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="text" id="searchInput" oninput="filterMedicines()" placeholder="Дәрі атауы бойынша іздеу..." class="w-full pl-11 pr-4 py-3.5 bg-white text-slate-800 placeholder-slate-400 rounded-2xl text-sm font-medium focus:outline-none focus:ring-4 focus:ring-white/30 shadow-lg">
+                    </div>
+                </div>
+
+                <!-- Categories Bar (15 Categories) -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-lg font-bold text-slate-900" data-i18n="categoriesHeading">Дәрі санаттары (15 санат)</h3>
+                        <button onclick="selectCategory('all')" class="text-xs font-semibold text-medical-600 hover:text-medical-700" data-i18n="showAllCategories">Барлығын көрсету</button>
+                    </div>
+                    <div id="categoriesContainer" class="flex items-center gap-3 overflow-x-auto pb-3 pt-1 no-scrollbar">
+                        <!-- Dynamically populated via JS -->
+                    </div>
+                </div>
+
+                <!-- Medicines Catalog Grid Section -->
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 id="currentCategoryTitle" class="text-xl font-bold text-slate-900">Барлық дәрілер</h3>
+                        <span id="productCountBadge" class="text-xs font-semibold px-3 py-1 bg-slate-200 text-slate-700 rounded-full">0 өнім</span>
+                    </div>
+
+                    <!-- Products Grid -->
+                    <div id="medicinesGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                        <!-- Dynamically populated medicines -->
+                    </div>
+                    
+                    <!-- Empty State -->
+                    <div id="emptySearchState" class="hidden text-center py-16 space-y-3">
+                        <div class="w-16 h-16 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center text-2xl">
+                            <i class="fa-solid fa-box-open"></i>
+                        </div>
+                        <h4 class="text-lg font-bold text-slate-700" data-i18n="emptySearchTitle">Дәрі табылмады немесе қоймада жоқ</h4>
+                        <p class="text-sm text-slate-500" data-i18n="emptySearchSub">Іздеу сөзін өзгертіп көріңіз немесе төмендегі ұқсас балама дәрілерді таңдаңыз.</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+
+        <!-- VIEW 3: ADMIN DASHBOARD (Hidden by default) -->
+        <div id="adminDashboardView" class="hidden fade-in py-8">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+                
+                <!-- Admin Header & KPI Cards -->
+                <div class="bg-slate-900 text-white rounded-3xl p-6 sm:p-10 shadow-xl space-y-6">
+                    <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div>
+                            <span class="px-3 py-1 rounded-full bg-brand-600 text-white text-xs font-bold">Администратор панелі</span>
+                            <h2 class="text-2xl sm:text-3xl font-extrabold mt-2" data-i18n="adminPanelTitle">Дәріхана басқару және бақылау жүйесі</h2>
+                            <p class="text-xs text-slate-400 mt-1" data-i18n="adminPanelSub">Қойма қоры, мерзімі өтіп бара жатқан дәрілерді бақылау, қаржылай есеп және курьерлік орын алмасуы.</p>
+                        </div>
+                        <button onclick="navigateHome()" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition border border-slate-700">
+                            <i class="fa-solid fa-arrow-left mr-2"></i> <span data-i18n="backToSite">Сайтқа қайту</span>
+                        </button>
+                    </div>
+
+                    <!-- KPI Financial Metrics (Sales, Deficit / Minus, Total Orders) -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 border-t border-slate-800">
+                        <div class="bg-slate-800/80 p-5 rounded-2xl border border-slate-700 space-y-2">
+                            <span class="text-xs text-slate-400 uppercase font-semibold" data-i18n="kpiDailySales">Бүгінгі сатылым</span>
+                            <h3 class="text-2xl font-extrabold text-emerald-400" id="kpiSalesValue">148,500 ₸</h3>
+                            <p class="text-[11px] text-slate-400"><i class="fa-solid fa-arrow-trend-up text-emerald-400"></i> +12% кешегі күнмен салыстырғанда</p>
+                        </div>
+                        <div class="bg-slate-800/80 p-5 rounded-2xl border border-slate-700 space-y-2">
+                            <span class="text-xs text-slate-400 uppercase font-semibold" data-i18n="kpiDeficit">Шығын / Минусқа кеткені</span>
+                            <h3 class="text-2xl font-extrabold text-rose-400" id="kpiDeficitValue">12,400 ₸</h3>
+                            <p class="text-[11px] text-slate-400" data-i18n="kpiDeficitSub">Ескірген немесе есептен шығарылған</p>
+                        </div>
+                        <div class="bg-slate-800/80 p-5 rounded-2xl border border-slate-700 space-y-2">
+                            <span class="text-xs text-slate-400 uppercase font-semibold" data-i18n="kpiOrdersCount">Бүгінгі тапсырыстар</span>
+                            <h3 class="text-2xl font-extrabold text-blue-400" id="kpiOrdersValue">24 дана</h3>
+                            <p class="text-[11px] text-slate-400">16 курьерлік, 8 өзі алып кету</p>
+                        </div>
+                        <div class="bg-slate-800/80 p-5 rounded-2xl border border-slate-700 space-y-2">
+                            <span class="text-xs text-slate-400 uppercase font-semibold" data-i18n="kpiInventoryCount">Қоймадағы дәрілер</span>
+                            <h3 class="text-2xl font-extrabold text-medical-400" id="kpiInventoryValue">300 түрлі</h3>
+                            <p class="text-[11px] text-slate-400" data-i18n="kpiInventorySub">15 санат бойынша толық</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Tabs / Navigation -->
+                <div class="flex items-center gap-3 overflow-x-auto pb-2 border-b border-slate-200">
+                    <button onclick="switchAdminTab('inventory')" id="tabBtnInventory" class="px-5 py-3 rounded-xl font-bold text-sm transition bg-brand-600 text-white shadow-md">
+                        <i class="fa-solid fa-boxes-stacked mr-2"></i> <span data-i18n="adminTabInventory">Қойма & Мерзімі өткен дәрілер</span>
+                    </button>
+                    <button onclick="switchAdminTab('orders')" id="tabBtnOrders" class="px-5 py-3 rounded-xl font-bold text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200">
+                        <i class="fa-solid fa-list-check mr-2"></i> <span data-i18n="adminTabOrders">Тапсырыстарды басқару</span>
+                    </button>
+                    <button onclick="switchAdminTab('delivery')" id="tabBtnDelivery" class="px-5 py-3 rounded-xl font-bold text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 whitespace-nowrap">
+                        <i class="fa-solid fa-truck-fast mr-2"></i> Жеткізуді басқару
+                    </button>
+                    <button onclick="switchAdminTab('tracking')" id="tabBtnTracking" class="px-5 py-3 rounded-xl font-bold text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200">
+                        <i class="fa-solid fa-map-location-dot mr-2"></i> <span data-i18n="adminTabTracking">Курьерлерді қадағалау (GPS)</span>
+                    </button>
+                    <button onclick="switchAdminTab('analytics')" id="tabBtnAnalytics" class="px-5 py-3 rounded-xl font-bold text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200">
+                        <i class="fa-solid fa-chart-line mr-2"></i> <span data-i18n="adminTabAnalytics">Қаржы және Есептер</span>
+                    </button>
+                </div>
+
+                <!-- TAB 1: INVENTORY MANAGEMENT & EXPIRATION CHECKING -->
+                <div id="adminTabContentInventory" class="space-y-6">
+                    <div class="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-900" data-i18n="invHeaderTitle">Қойма қорын басқару</h3>
+                            <p class="text-xs text-slate-500" data-i18n="invHeaderSub">Жаңа дәрі қосу, жоқ дәрілерді толтыру немесе мерзімі өтіп кеткендерді тізімнен алып тастау.</p>
+                        </div>
+                        <button onclick="openModal('addMedicineModal')" class="px-5 py-3 bg-medical-600 hover:bg-medical-700 text-white font-bold text-xs rounded-xl shadow-lg shadow-medical-500/20 transition flex items-center gap-2">
+                            <i class="fa-solid fa-plus text-sm"></i>
+                            <span data-i18n="btnAddMedicine">Жаңа дәрі қосу</span>
+                        </button>
+                    </div>
+
+                    <div class="bg-white border rounded-2xl p-4 space-y-3"><h4 class="font-bold">Дәріхананың байланыс және төлем баптаулары (демо)</h4><div class="grid sm:grid-cols-2 gap-3"><label class="text-xs">WhatsApp нөмірі<input id="adminWhatsappPhone" placeholder="+7 777 123 45 67" class="block w-full p-2 mt-1 border rounded-lg"></label><label class="text-xs">Дәріхана мекенжайы<input id="adminPharmacyAddress" placeholder="Қала, көше, үй" class="block w-full p-2 mt-1 border rounded-lg"></label></div><label class="block text-xs">Ресми Kaspi QR суреті (тек дәріхана иесі)<input type="file" id="adminKaspiQr" accept="image/png,image/jpeg,image/webp" class="block mt-1"></label><button onclick="savePharmacySettings()" class="px-4 py-2 bg-medical-600 text-white rounded-xl text-sm">Сақтау</button><p class="text-xs text-amber-700">Демо: баптаулар тек осы браузерде сақталады. QR бойынша төлемді автоматты тексеру жоқ.</p></div>
+                    <!-- Аз қалған дәрілер туралы ескерту -->
+                    <div id="lowStockAlert" class="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900" role="status" aria-live="polite"></div>
+                                        <!-- Inventory Table -->
+                    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase font-bold tracking-wider">
+                                        <th class="p-4" data-i18n="thMedicineName">Дәрі атауы</th>
+                                        <th class="p-4" data-i18n="thCategory">Санат</th>
+                                        <th class="p-4" data-i18n="thPrice">Бағасы</th>
+                                        <th class="p-4" data-i18n="thStock">Қоймада</th>
+                                        <th class="p-4" data-i18n="thExpiry">Жарамдылық мерзімі</th>
+                                        <th class="p-4" data-i18n="thStatus">Күйі</th>
+                                        <th class="p-4 text-right" data-i18n="thActions">Әрекеттер</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminInventoryTableBody" class="divide-y divide-slate-100 text-sm">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TAB 2: ORDERS MANAGEMENT -->
+                <div id="adminTabContentOrders" class="hidden space-y-6">
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-900" data-i18n="ordersHeaderTitle">Түскен тапсырыстар тізімі</h3>
+                            <p class="text-xs text-slate-500" data-i18n="ordersHeaderSub">Клиенттердің тапсырыстарын қабылдау, жолға шығару және WhatsApp хабарламаларын автоматты жіберу.</p>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase font-bold tracking-wider">
+                                        <th class="p-4">ID</th>
+                                        <th class="p-4" data-i18n="thClient">Клиент</th>
+                                        <th class="p-4" data-i18n="thItems">Тапсырыс құрамы</th>
+                                        <th class="p-4" data-i18n="thTotal">Сомасы</th>
+                                        <th class="p-4" data-i18n="thDeliveryType">Жеткізу түрі</th>
+                                        <th class="p-4" data-i18n="thOrderStatus">Тапсырыс күйі</th>
+                                        <th class="p-4 text-right" data-i18n="thActions">Әрекет</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminOrdersTableBody" class="divide-y divide-slate-100 text-sm">
+                                    <!-- Populated via JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DELIVERY OPERATIONS: assigned couriers and fulfillment -->
+                <div id="adminTabContentDelivery" class="hidden space-y-5">
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200 space-y-4">
+                        <div class="flex flex-wrap justify-between gap-3 items-center">
+                            <div><h3 class="text-xl font-bold text-slate-900">Жеткізуді басқару</h3><p class="text-sm text-slate-500">Курьерді таңдаңыз, тапсырысты жолға шығарыңыз және жеткізілгенін белгілеңіз.</p></div>
+                            <button onclick="switchAdminTab('tracking')" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold"><i class="fa-solid fa-map-location-dot mr-1"></i> Картаны ашу</button>
+                        </div>
+                        <div id="deliveryOrdersPanel" class="grid md:grid-cols-2 gap-4"></div>
+                    </div>
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200 space-y-4">
+                        <h3 class="text-lg font-bold">Курьерлер тізімі</h3>
+                        <p class="text-xs text-slate-500">Курьерді қосып, тапсырысқа тағайындауға болады. Орналасқан жері тек курьер рұқсатымен GPS жіберілгенде көрсетілуге тиіс; бұл HTML нұсқада координаттарды әкімші қолмен енгізе алады (демо).</p>
+                        <div class="flex flex-wrap gap-2"><input id="courierNewName" placeholder="Курьердің аты" class="border rounded-xl px-3 py-2 text-sm flex-1 min-w-40"><input id="courierNewPhone" placeholder="Телефоны (+7...)" class="border rounded-xl px-3 py-2 text-sm flex-1 min-w-40"><button onclick="addCourier()" class="bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm">+ Курьер қосу</button></div>
+                        <div id="courierManagerList" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- TAB 3: COURIER TRACKING MAP -->
+                <div id="adminTabContentTracking" class="hidden space-y-6">
+                    <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-bold text-slate-900">Курьерлер картасы — Django GPS</h3>
+                                <p class="text-xs text-slate-500">Курьердің соңғы координаттары Django серверінен әр 5 секунд сайын алынады. Ескірген GPS бөлек белгіленеді.</p>
+                            </div>
+                            <button onclick="refreshCourierLocation()" class="px-4 py-2 bg-brand-50 text-brand-600 hover:bg-brand-100 font-bold text-xs rounded-xl transition">
+                                <i class="fa-solid fa-rotate mr-1"></i> <span data-i18n="refreshMap">Жаңарту</span>
+                            </button>
+                        </div>
+                        <!-- Admin Leaflet Map Container -->
+                        <div id="adminMap"></div>
+                        <p id="adminGpsStatus" role="status" class="text-sm text-slate-600 mt-3">GPS деректерін жүктеу үшін осы бөлімді ашыңыз.</p>
+                        <div id="adminGpsList" class="grid md:grid-cols-2 gap-3 mt-3"></div>
+                        <p class="text-xs text-amber-700">Бұл картаға тек Django жүйесінде staff құқығы бар пайдаланушылар кіре алады. «GPS ескірген» — курьердің қазіргі орны расталмағанын білдіреді.</p>
+                    </div>
+                </div>
+
+                <!-- TAB 4: FINANCIAL & SALES ANALYTICS -->
+                <div id="adminTabContentAnalytics" class="hidden space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                            <h3 class="text-base font-bold text-slate-900" data-i18n="analyticsCategorySales">Санаттар бойынша сатылым үлесі</h3>
+                            <div class="space-y-3 pt-2" id="categorySalesStats">
+                                <!-- Populated via JS -->
+                            </div>
+                        </div>
+                        <div class="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                            <h3 class="text-base font-bold text-slate-900" data-i18n="analyticsLossTitle">Шығындар мен есептен шығарылған дәрілер (Минус)</h3>
+                            <div class="space-y-3 pt-2">
+                                <div class="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <i class="fa-solid fa-triangle-exclamation text-rose-600 text-lg"></i>
+                                        <div>
+                                            <h4 class="text-xs font-bold text-rose-900">Жарамдылық мерзімі өтуіне байланысты</h4>
+                                            <span class="text-[11px] text-rose-600">3 дәрі есептен шығарылды</span>
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-extrabold text-rose-700">-8,500 ₸</span>
+                                </div>
+                                <div class="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <i class="fa-solid fa-box-archive text-amber-600 text-lg"></i>
+                                        <div>
+                                            <h4 class="text-xs font-bold text-amber-900">Логистикалық шығындар</h4>
+                                            <span class="text-[11px] text-amber-600">Транспортировка және сақтау</span>
+                                        </div>
+                                    </div>
+                                    <span class="text-sm font-extrabold text-amber-700">-3,900 ₸</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer id="contacts" class="bg-slate-900 text-slate-300 pt-16 pb-12 mt-20 border-t border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-4 gap-10">
+            <div class="space-y-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-medical-600 flex items-center justify-center text-white shadow-md">
+                        <i class="fa-solid fa-kit-medical text-lg"></i>
+                    </div>
+                    <span class="text-xl font-bold text-white">PharmaCare Pro</span>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed" data-i18n="footerAbout">
+                    Қазақстандағы ең заманауи және сенімді дәріхана ақпараттық жүйесі. Тәулік бойы қызмет көрсету (24/7) және жылдам жеткізу.
+                </p>
+                <div class="flex items-center gap-3 text-slate-400 pt-2">
+                    <a id="footerWhatsapp" href="#" target="_blank" class="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center hover:bg-emerald-700 transition" title="WhatsApp Direct"><i class="fa-brands fa-whatsapp text-sm"></i></a>
+                    <a href="#" class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center hover:bg-medical-600 hover:text-white transition"><i class="fa-brands fa-instagram text-sm"></i></a>
+                    <a href="#" class="w-9 h-9 rounded-full bg-slate-800 flex items-center justify-center hover:bg-medical-600 hover:text-white transition"><i class="fa-brands fa-telegram text-sm"></i></a>
+                </div>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider mb-4" data-i18n="footerNavTitle">Жылдам сілтемелер</h4>
+                <ul class="space-y-2 text-xs">
+                    <li><a href="#home" onclick="navigateHome()" class="hover:text-white transition" data-i18n="navHome">Басты бет</a></li>
+                    <li><a href="#catalog" onclick="openCatalogDirect()" class="hover:text-white transition" data-i18n="navCatalog">Дәрілер каталогы</a></li>
+                    <li><a href="#about" onclick="scrollToAbout()" class="hover:text-white transition" data-i18n="navAbout">Біз туралы</a></li>
+                    <li><a href="#contacts" onclick="scrollToContacts()" class="hover:text-white transition" data-i18n="navContact">Байланыс</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider mb-4" data-i18n="footerCategoriesTitle">Негізгі санаттар</h4>
+                <ul class="space-y-2 text-xs">
+                    <li><a href="#" onclick="selectCategory('pain')" class="hover:text-white transition" data-i18n="catPain">Ауырғанды басатын</a></li>
+                    <li><a href="#" onclick="selectCategory('vitamins')" class="hover:text-white transition" data-i18n="catVitamins">Витаминдер</a></li>
+                    <li><a href="#" onclick="selectCategory('antibiotics')" class="hover:text-white transition" data-i18n="catAntibiotics">Антибиотиктер</a></li>
+                    <li><a href="#" onclick="selectCategory('cardio')" class="hover:text-white transition" data-i18n="catCardio">Жүрек-қан тамырлары</a></li>
+                </ul>
+            </div>
+            <div>
+                <h4 class="text-sm font-bold text-white uppercase tracking-wider mb-4" data-i18n="footerContactTitle">Байланыс орталығы & WhatsApp</h4>
+                <ul class="space-y-3 text-xs text-slate-400">
+                    <li class="flex items-center gap-3"><i class="fa-solid fa-phone text-medical-500"></i> +7 707 891 18 02</li>
+                    <li class="flex items-center gap-3"><i class="fa-brands fa-whatsapp text-emerald-400 text-base"></i> <a id="footerWhatsappText" href="#" target="_blank">WhatsApp нөмірін баптаңыз</a></li>
+                    <li class="flex items-center gap-3"><i class="fa-solid fa-location-dot text-medical-500"></i> <span data-i18n="footerAddress">Алматы қаласы, Абай даңғылы 150</span></li>
+                </ul>
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 pt-6 border-t border-slate-800 text-center text-xs text-slate-500">
+            <p data-i18n="footerCopy">&copy; 2026 PharmaCare Pro Дәріхана Ақпараттық Жүйесі. Барлық құқықтар қорғалған.</p>
+        </div>
+    </footer>
+
+
+    <!-- ================= FLOATING AI CHATBOT ASSISTANT ================= -->
+    <div class="fixed bottom-6 left-6 z-40">
+        <button onclick="toggleChatbot()" class="w-14 h-14 rounded-full bg-gradient-to-tr from-medical-600 to-emerald-400 text-white shadow-2xl flex items-center justify-center text-2xl hover:scale-105 transition transform">
+            <i class="fa-solid fa-headset"></i>
+        </button>
+        <!-- Chatbot Window -->
+        <div id="chatbotWindow" class="hidden absolute bottom-20 left-0 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col fade-in">
+            <div class="bg-gradient-to-r from-medical-700 to-brand-600 p-4 text-white flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center font-bold">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div>
+                        <h4 class="text-sm font-bold" data-i18n="botTitle">PharmaBot Көмекшісі</h4>
+                        <span class="text-[10px] text-medical-100" data-i18n="botSubtitle">Сұрақтарыңызға жауап беремін 24/7</span>
+                    </div>
+                </div>
+                <button onclick="toggleChatbot()" class="text-white/80 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <!-- Chat Messages Area -->
+            <div id="chatMessages" class="p-4 h-72 overflow-y-auto space-y-3 text-xs bg-slate-50/50">
+                <div class="bg-white p-3 rounded-2xl shadow-sm border border-slate-100 max-w-[85%]">
+                    <p class="font-bold text-medical-700 mb-1">PharmaBot</p>
+                    <p class="text-slate-600" data-i18n="botGreeting">Қайырлы күн! Мен PharmaCare Pro виртуалды көмекшісімін. Сізге қандай дәрі немесе кеңес қажет?</p>
+                </div>
+            </div>
+            <!-- Chat Input Area -->
+            <div class="p-3 bg-white border-t border-slate-100 flex items-center gap-2">
+                <input type="text" id="chatInput" onkeydown="if(event.key==='Enter') sendChatMessage()" placeholder="Сұрағыңызды жазыңыз..." class="flex-grow px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-medical-500">
+                <button onclick="sendChatMessage()" class="px-4 py-2.5 bg-medical-600 hover:bg-medical-700 text-white rounded-xl text-xs font-bold transition">
+                    <i class="fa-solid fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================= MODALS ================= -->
+
+    <!-- LOGIN MODAL (Client & Admin support) -->
+    <div id="loginModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6 relative fade-in">
+            <button onclick="closeModal('loginModal')" class="absolute top-6 right-6 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <div class="text-center space-y-2">
+                <div class="w-12 h-12 rounded-2xl bg-medical-50 text-medical-600 flex items-center justify-center text-xl mx-auto shadow-inner">
+                    <i class="fa-solid fa-right-to-bracket"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-900" data-i18n="loginModalTitle">Жүйеге кіру</h3>
+                <p class="text-xs text-slate-500" data-i18n="loginModalSub">Клиент немесе Админ кабинетіне кіріңіз</p>
+            </div>
+            
+            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="labelUsername">Логин</label>
+                    <input type="text" id="loginUsername" required placeholder="client_user немесе admin" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-medical-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="labelPassword">Құпия сөз (Password)</label>
+                    <input type="password" id="loginPassword" required placeholder="••••••••" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-medical-500">
+                </div>
+                <div class="text-[11px] text-slate-400 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    💡 <span data-i18n="loginHint">Тек демо! Демо админ үшін логин: <b class="text-slate-700">admin</b>, пароль: <b class="text-slate-700">1234</b> теріңіз.</span>
+                </div>
+                <button type="submit" class="w-full py-3.5 bg-medical-600 hover:bg-medical-700 text-white font-semibold rounded-xl shadow-lg shadow-medical-500/20 transition" data-i18n="btnLoginSubmit">Кіру</button>
+            </form>
+            <div class="text-center text-xs text-slate-500">
+                <span data-i18n="noAccountText">Тіркелмегенсіз бе?</span> 
+                <button onclick="switchModal('loginModal', 'registerModal')" class="text-medical-600 font-semibold hover:underline ml-1" data-i18n="linkRegisterNow">Тіркелу</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- REGISTER MODAL -->
+    <div id="registerModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6 relative fade-in">
+            <button onclick="closeModal('registerModal')" class="absolute top-6 right-6 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <div class="text-center space-y-2">
+                <div class="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center text-xl mx-auto shadow-inner">
+                    <i class="fa-solid fa-user-plus"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-900" data-i18n="registerModalTitle">Клиент ретінде тіркелу</h3>
+                <p class="text-xs text-slate-500" data-i18n="registerModalSub">Жаңа аккаунт ашу арқылы тапсырыс беріңіз</p>
+            </div>
+            
+            <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 p-2 rounded-lg">Демо нұсқа: тіркелу деректері осы браузерде ғана сақталады. Нақты құпиясөзді қолданбаңыз.</p>
+            <form id="registerForm" onsubmit="handleRegister(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="labelFullName">Аты-жөніңіз</label>
+                    <input type="text" id="regName" required placeholder="Амангелді Айдын" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-medical-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="labelUsername">Логин (Username)</label>
+                    <input type="text" id="regUsername" required placeholder="aidyn_client" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-medical-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="labelPassword">Құпия сөз (Password)</label>
+                    <input type="password" id="regPassword" required placeholder="••••••••" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-medical-500">
+                </div>
+                <div><label class="block text-xs font-semibold text-slate-700 mb-1">WhatsApp байланыс нөмірі (+7...)</label><input type="tel" id="regPhone" required placeholder="+7 777 123 45 67" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm"></div>
+                <button type="submit" class="w-full py-3.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl shadow-lg shadow-brand-500/20 transition" data-i18n="btnRegisterSubmit">Тіркелуді аяқтау</button>
+            </form>
+            <div class="text-center text-xs text-slate-500">
+                <span data-i18n="hasAccountText">Аккауунтыңыз бар ма?</span> 
+                <button onclick="switchModal('registerModal', 'loginModal')" class="text-medical-600 font-semibold hover:underline ml-1" data-i18n="linkLoginNow">Кіру</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CART & CHECKOUT MODAL -->
+    <div id="cartModal" class="fixed inset-0 z-50 hidden items-center justify-end bg-slate-900/60 backdrop-blur-sm">
+        <div class="bg-white h-full max-w-md w-full p-6 shadow-2xl flex flex-col justify-between fade-in relative overflow-y-auto">
+            <div>
+                <div class="flex items-center justify-between pb-4 border-b border-slate-100">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-medical-50 text-medical-600 flex items-center justify-center font-bold">
+                            <i class="fa-solid fa-cart-shopping"></i>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-900" data-i18n="cartModalTitle">Сіздің себетіңіз</h3>
+                    </div>
+                    <button onclick="closeCartModal()" class="text-slate-400 hover:text-slate-600 p-2">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Cart Items List -->
+                <div id="cartItemsList" class="divide-y divide-slate-100 my-4 max-h-[35vh] overflow-y-auto pr-1">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
+
+            <!-- Cart Summary & Checkout Options -->
+            <div id="cartFooterSection" class="pt-4 border-t border-slate-100 space-y-4">
+                
+                <!-- Prescription Upload requirement notice -->
+                <div id="prescriptionUploadBox" class="p-3 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
+                    <div class="flex items-center gap-2 text-amber-800 text-xs font-bold">
+                        <i class="fa-solid fa-file-medical"></i>
+                        <span data-i18n="prescriptionRequiredTitle">Дәгердің рецепті міндетті</span>
+                    </div>
+                    <p class="text-[11px] text-amber-700" data-i18n="prescriptionRequiredSub">Себеттегі кейбір дәрілер тек рецепт бойынша беріледі. Дәрігер рұқсатын жүктеңіз:</p>
+                    <input type="file" id="prescriptionFileInput" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-medical-50 file:text-medical-700 hover:file:bg-medical-100 cursor-pointer">
+                </div>
+
+                <!-- Delivery Option Selection (Courier vs Self-Pickup) -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-slate-700" data-i18n="deliveryMethodLabel">Жеткізу түрін таңдаңыз:</label>
+                    <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
+                        <button type="button" onclick="setDeliveryType('courier')" id="deliveryCourierBtn" class="p-2.5 rounded-xl border-2 border-medical-600 bg-medical-50 text-medical-700 transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-motorcycle"></i> <span data-i18n="delCourier">Үйге жеткізу (Курьер)</span>
+                        </button>
+                        <button type="button" onclick="setDeliveryType('pickup')" id="deliveryPickupBtn" class="p-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-600 transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-store"></i> <span data-i18n="delPickup">Өзі алып кету</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="deliveryAddressBox"><label class="block text-xs font-semibold text-slate-700 mb-1">Жеткізу мекенжайы *</label><textarea id="deliveryAddress" rows="2" placeholder="Қала, көше, үй, пәтер, кіреберіс" class="w-full px-3 py-2 border rounded-xl text-sm"></textarea></div>
+                <!-- Payment Method Selection -->
+                <div class="space-y-1">
+                    <label class="block text-xs font-semibold text-slate-700" data-i18n="paymentMethodLabel">Төлем түрін таңдаңыз:</label>
+                    <div class="grid grid-cols-3 gap-2 text-xs font-semibold">
+                        <button type="button" onclick="setPaymentMethod('cash')" id="payCashBtn" class="p-2.5 rounded-xl border-2 border-medical-600 bg-medical-50 text-medical-700 transition">Қолма-қол</button>
+                        <button type="button" onclick="setPaymentMethod('card')" id="payCardBtn" class="p-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-600 transition">Карта</button>
+                        <button type="button" onclick="setPaymentMethod('qr')" id="payQrBtn" class="p-2.5 rounded-xl border-2 border-slate-200 bg-white text-slate-600 transition">Kaspi QR</button>
+                    </div>
+                </div>
+
+                <div id="kaspiQrBox" class="hidden bg-red-50 border border-red-200 p-4 rounded-xl space-y-2 text-xs"><b>Kaspi QR арқылы төлеу</b><p>Бұл жерде дәріхананың ресми Kaspi QR суреті көрсетіледі. QR-ды админ баптайды. QR көрсетілмесе төлем жасамаңыз.</p><img id="kaspiQrImage" class="hidden mx-auto max-h-52 object-contain" alt="Дәріхана Kaspi QR"><p id="kaspiQrMissing" class="text-rose-700">QR әлі жүктелмеген.</p><label class="block font-bold">Төлем чегі *</label><input id="paymentReceipt" type="file" accept="image/png,image/jpeg,image/webp,application/pdf" class="w-full"></div>
+                <div class="space-y-1 pt-2 border-t border-slate-100">
+                    <div class="flex justify-between text-sm text-slate-500">
+                        <span data-i18n="subtotalLabel">Жалпы сомасы:</span>
+                        <span id="cartSubtotal" class="font-bold text-slate-800">0 ₸</span>
+                    </div>
+                    <div class="flex justify-between text-base font-bold text-slate-900 pt-1">
+                        <span data-i18n="totalLabel">Барлығы:</span>
+                        <span id="cartTotal" class="text-medical-700">0 ₸</span>
+                    </div>
+                </div>
+
+                <button onclick="checkoutOrder()" class="w-full py-4 bg-medical-600 hover:bg-medical-700 text-white font-bold rounded-2xl shadow-lg shadow-medical-500/20 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-bag-shopping"></i>
+                    <span data-i18n="checkoutBtn">Тапсырысты растау</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- CLIENT MY ORDERS MODAL -->
+    <div id="ordersModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl max-w-2xl w-full p-8 shadow-2xl space-y-6 relative fade-in max-h-[80vh] overflow-y-auto">
+            <button onclick="closeModal('ordersModal')" class="absolute top-6 right-6 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-medical-50 text-medical-600 flex items-center justify-center text-xl shadow-inner">
+                    <i class="fa-solid fa-box-archive"></i>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-slate-900" data-i18n="myOrdersTitle">Менің тапсырыстарым</h3>
+                    <p class="text-xs text-slate-500" data-i18n="myOrdersSub">Барлық белсенді және аяқталған тапсырыстарыңыздың күйі</p>
+                </div>
+            </div>
+
+            <div id="clientOrdersListContainer" class="space-y-4">
+                <!-- Populated via JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ADD MEDICINE MODAL (Admin) -->
+    <div id="addMedicineModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-8 shadow-2xl space-y-6 relative fade-in">
+            <button onclick="closeModal('addMedicineModal')" class="absolute top-6 right-6 text-slate-400 hover:text-slate-600">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <div class="text-center space-y-2">
+                <div class="w-12 h-12 rounded-2xl bg-medical-50 text-medical-600 flex items-center justify-center text-xl mx-auto shadow-inner">
+                    <i class="fa-solid fa-pills"></i>
+                </div>
+                <h3 class="text-2xl font-bold text-slate-900" data-i18n="modalAddMedTitle">Қоймаға жаңа дәрі қосу</h3>
+                <p class="text-xs text-slate-500" data-i18n="modalAddMedSub">Дәрі атауы, санаты, бағасы және жарамдылық мерзімі</p>
+            </div>
+            
+            <form id="addMedicineForm" onsubmit="handleAddNewMedicine(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="labelMedName">Дәрі атауы</label>
+                    <input type="text" id="newMedName" required placeholder="Мысалы: Парацетамол Экстра" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-medical-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="labelMedCategory">Санат</label>
+                    <select id="newMedCategory" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-medical-500">
+                        <option value="pain">Ауырғанды басатын</option>
+                        <option value="vitamins">Витаминдер</option>
+                        <option value="antibiotics">Антибиотиктер</option>
+                        <option value="cardio">Жүрек-қан тамырлары</option>
+                        <option value="digestive">Ас қорыту</option>
+                        <option value="respiratory">Тыныс алу</option>
+                        <option value="allergy">Аллергия</option>
+                        <option value="antiviral">Вирусқа қарсы</option>
+                        <option value="sedatives">Седативті</option>
+                        <option value="dermatology">Тері аурулары</option>
+                        <option value="eyecare">Көз күтімі</option>
+                        <option value="firstaid">Алғашқы көмек</option>
+                        <option value="orthopedic">Ортопедиялық</option>
+                        <option value="antiseptics">Антисептиктер</option>
+                        <option value="pediatric">Балалар дәрілері</option>
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="labelMedPrice">Бағасы (₸)</label>
+                        <input type="number" id="newMedPrice" required min="100" placeholder="1500" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-medical-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="labelMedStock">Қоймадағы саны</label>
+                        <input type="number" id="newMedStock" required min="1" placeholder="50" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-medical-500">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="labelMedExpiry">Жарамдылық мерзімі (Күні)</label>
+                    <input type="date" id="newMedExpiry" required class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-medical-500">
+                </div>
+                <div><label class="block text-xs font-semibold text-slate-700 mb-1">Дәрінің суреті (PNG/JPG/WebP, 1 МБ дейін)</label><input type="file" id="newMedImage" accept="image/png,image/jpeg,image/webp" class="w-full text-xs" onchange="previewMedicineImage(this)"><img id="newMedPreview" class="hidden mt-2 h-24 w-24 object-cover rounded-xl" alt="Алдын ала қарау"></div>
+                <button type="submit" class="w-full py-3.5 bg-medical-600 hover:bg-medical-700 text-white font-semibold rounded-xl shadow-lg shadow-medical-500/20 transition" data-i18n="btnAddMedSubmit">Қоймаға қосу</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- WHATSAPP SIMULATION TOAST / MODAL -->
+    <div id="whatsappSimModal" class="fixed bottom-6 right-6 z-50 transform translate-y-32 opacity-0 transition-all duration-300 pointer-events-none max-w-sm">
+        <div class="bg-emerald-600 text-white p-4 rounded-3xl shadow-2xl flex items-start gap-3 border border-emerald-500">
+            <div class="w-10 h-10 rounded-full bg-white text-emerald-600 flex items-center justify-center text-xl font-bold flex-shrink-0 shadow">
+                <i class="fa-brands fa-whatsapp"></i>
+            </div>
+            <div class="space-y-1">
+                <div class="flex items-center justify-between">
+                    <h5 class="text-xs font-bold uppercase tracking-wider" data-i18n="waSimTitle">WhatsApp Хабарламасы</h5>
+                    <span class="text-[10px] text-emerald-200">Қазір ғана</span>
+                </div>
+                <p id="whatsappSimText" class="text-xs font-medium leading-relaxed">Тапсырыс қабылданды...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- CUSTOM TOAST NOTIFICATION -->
+    <div id="toastNotification" class="fixed bottom-24 right-6 z-50 transform translate-y-24 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-slate-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl flex items-center gap-3 text-sm font-medium border border-slate-800">
+            <i id="toastIcon" class="fa-solid fa-circle-check text-medical-400 text-lg"></i>
+            <span id="toastMessage">Хабарлама</span>
+        </div>
+    </div>
+
+
+    <div id="trackingModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 p-4"><div class="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[90vh] overflow-auto"><div class="flex justify-between items-center mb-3"><h3 class="font-bold text-lg">Менің жеткізілімім</h3><button onclick="closeModal('trackingModal')">✕</button></div><div id="trackingOrderDetails" class="text-sm mb-3"></div><div id="clientMap" style="height:300px;border-radius:16px"></div><p class="text-xs text-amber-700 mt-2">Бұл карта — демонстрациялық. Мұндағы тапсырыстар браузерде сақталады және Django-дағы нақты GPS тапсырыстарымен байланыспаған. Нақты бақылауды іске қосу үшін клиенттік серверлік авторизация қажет.</p></div></div>
+    <!-- ================= JAVASCRIPT LOGIC ================= -->
+    <script>
+        // --- MULTILINGUAL DICTIONARY (KK, RU, EN) ---
+        const translations = {
+            kk: {
+                bannerHours: "Жұмыс уақыты: Тәулік бойы (24/7 ашық). Жеткізу 30 минутта!",
+                logoSub: "Дәріхана Ақпараттық Жүйесі",
+                navHome: "Басты бет",
+                navCatalog: "Дәрілер каталогы",
+                navAbout: "Біз туралы",
+                navContact: "Байланыс",
+                btnLogin: "Кіру",
+                btnRegister: "Тіркелу",
+                clientStatus: "Клиент",
+                adminPanelBtn: "Админ Панель",
+                heroBadge: "Сертификатталған және қауіпсіз дәрі-дәрмектер 24/7",
+                heroTitle: "Сіздің денсаулығыңыз – біздің басты құндылығымыз",
+                heroSubtitle: "Заманауи дәріхана ақпараттық жүйесі арқылы 15 санаттағы 300-ден астам дәрі-дәрмектерді оңай тауып, үйіңізге немесе дәріханамыздан алып кетуге тапсырыс беріңіз.",
+                heroBtnCatalog: "Дәрілерді қарау",
+                heroBtnAccount: "Жеке кабинет ашу",
+                statCategories: "Санаттар",
+                statMedicines: "Дәрі түрлері",
+                statSupport: "Жұмыс уақыты",
+                cardFastOrder: "Жылдам тапсырыс",
+                cardFastSub: "Лицензияланған өнімдер",
+                activeBadge: "24/7 Ашық",
+                cardCategoryLabel: "Танымал санаттар",
+                cardAll: "Барлығы",
+                catPain: "Ауырғанды басатын",
+                catVitamins: "Витаминдер",
+                catAntibiotics: "Антибиотиктер",
+                catCardio: "Жүрек-қан тамырлары",
+                pharmacyAddressTitle: "Дәріхана мекенжайы:",
+                footerAddress: "Алматы қаласы, Абай даңғылы 150 (Тәулік бойы)",
+                aboutTag: "Біз туралы",
+                aboutTitle: "PharmaCare Pro жүйесі жайлы",
+                aboutDesc: "Біздің дәріхана ақпараттық жүйесі пациенттерге ең жоғары сапалы медикаменттерді қолжетімді бағамен, рецептілік бақылаумен және курьерлік жеткізумен қамтамасыз етеді.",
+                aboutFeature1Title: "Жоғары сапа стандарты",
+                aboutFeature1Desc: "Барлық дәрі-дәрмектер халықаралық сапа стандарттарына сай және тек сенімді фармацевтикалық зауыттардан жеткізіледі.",
+                aboutFeature2Title: "Жылдам және қауіпсіз жеткізу",
+                aboutFeature2Desc: "Қала бойынша курьерлік қызмет арқылы температуралық режимді қатаң сақтай отырып, 30 минут ішінде жеткіземіз.",
+                aboutFeature3Title: "Рецепт пен қауіпсіздік",
+                aboutFeature3Desc: "Рецепттік дәрілер тек дәгердің рұқсаты немесе жүйеге жүктелген рецепт негізінде қатаң түрде беріледі.",
+                clientDashboardBadge: "Клиент кабинеті",
+                clientDashboardSub: "Қажетті 15 санаттағы мыңдаған дәрі-дәрмектерді іздеп, ұқсас баламаларды көріп, себетке қосыңыз.",
+                categoriesHeading: "Дәрі санаттары (15 санат)",
+                showAllCategories: "Барлығын көрсету",
+                emptySearchTitle: "Дәрі табылмады немесе қоймада жоқ",
+                emptySearchSub: "Іздеу сөзін өзгертіп көріңіз немесе төмендегі ұқсас балама дәрілерді таңдаңыз.",
+                footerAbout: "Қазақстандағы ең заманауи және сенімді дәріхана ақпараттық жүйесі. Тәулік бойы қызмет көрсету (24/7) және жылдам жеткізу.",
+                footerNavTitle: "Жылдам сілтемелер",
+                footerCategoriesTitle: "Негізгі санаттар",
+                footerContactTitle: "Байланыс орталығы & WhatsApp",
+                footerCopy: "&copy; 2026 PharmaCare Pro Дәріхана Ақпараттық Жүйесі. Барлық құқықтар қорғалған.",
+                botTitle: "PharmaBot Көмекшісі",
+                botSubtitle: "Сұрақтарыңызға жауап беремін 24/7",
+                botGreeting: "Қайырлы күн! Мен PharmaCare Pro виртуалды көмекшісімін. Сізге қандай дәрі немесе кеңес қажет?",
+                loginModalTitle: "Жүйеге кіру",
+                loginModalSub: "Клиент немесе Админ кабинетіне кіріңіз",
+                labelUsername: "Логин",
+                labelPassword: "Құпия сөз (Password)",
+                loginHint: "Тек демо! Демо админ үшін логин: <b>admin</b>, пароль: <b>1234</b> теріңіз.",
+                btnLoginSubmit: "Кіру",
+                noAccountText: "Тіркелмегенсіз бе?",
+                linkRegisterNow: "Тіркелу",
+                registerModalTitle: "Клиент ретінде тіркелу",
+                registerModalSub: "Жаңа аккаунт ашу арқылы тапсырыс беріңіз",
+                labelFullName: "Аты-жөніңіз",
+                btnRegisterSubmit: "Тіркелуді аяқтау",
+                hasAccountText: "Аккауунтыңыз бар ма?",
+                linkLoginNow: "Кіру",
+                cartModalTitle: "Сіздің себетіңіз",
+                prescriptionRequiredTitle: "Дәрігердің рецепті міндетті",
+                prescriptionRequiredSub: "Себеттегі кейбір дәрілер тек рецепт бойынша беріледі. Дәрігер рұқсатын жүктеңіз:",
+                deliveryMethodLabel: "Жеткізу түрін таңдаңыз:",
+                delCourier: "Үйге жеткізу (Курьер)",
+                delPickup: "Өзі алып кету",
+                paymentMethodLabel: "Төлем түрін таңдаңыз:",
+                subtotalLabel: "Жалпы сомасы:",
+                totalLabel: "Барлығы:",
+                checkoutBtn: "Тапсырысты растау",
+                myOrdersTitle: "Менің тапсырыстарым",
+                myOrdersSub: "Барлық белсенді және аяқталған тапсырыстарыңыздың күйі",
+                modalAddMedTitle: "Қоймаға жаңа дәрі қосу",
+                modalAddMedSub: "Дәрі атауы, санаты, бағасы және жарамдылық мерзімі",
+                labelMedName: "Дәрі атауы",
+                labelMedCategory: "Санат",
+                labelMedPrice: "Бағасы (₸)",
+                labelMedStock: "Қоймадағы саны",
+                labelMedExpiry: "Жарамдылық мерзімі (Күні)",
+                btnAddMedSubmit: "Қоймаға қосу",
+                waSimTitle: "WhatsApp Хабарламасы",
+                inStock: "Қоймада бар",
+                outOfStock: "Қоймада жоқ",
+                addToCart: "Себетке",
+                similarAlternative: "Ұқсас балама дәрі:",
+                addedToCartMsg: "Дәрі себетке қосылды!",
+                orderSuccessMsg: "Тапсырыс сәтті қабылданды! Админге WhatsApp хабарлама кетті.",
+                loginSuccessMsg: "Жүйеге сәтті кірдіңіз!",
+                registerSuccessMsg: "Сәтті тіркелдіңіз!",
+                adminPanelTitle: "Дәріхана басқару және бақылау жүйесі",
+                adminPanelSub: "Қойма қоры, мерзімі өтіп бара жатқан дәрілерді бақылау, қаржылай есеп және курьерлік орын алмасуы.",
+                backToSite: "Сайтқа қайту",
+                kpiDailySales: "Бүгінгі сатылым",
+                kpiDeficit: "Шығын / Минусқа кеткені",
+                kpiOrdersCount: "Бүгінгі тапсырыстар",
+                kpiInventoryCount: "Қоймадағы дәрілер",
+                kpiDeficitSub: "Ескірген немесе есептен шығарылған",
+                kpiInventorySub: "15 санат бойынша толық",
+                adminTabInventory: "Қойма & Мерзімі өткен дәрілер",
+                adminTabOrders: "Тапсырыстарды басқару",
+                adminTabTracking: "Курьерлерді қадағалау (Карта)",
+                adminTabAnalytics: "Қаржы және Есептер",
+                invHeaderTitle: "Қойма қорын басқару",
+                invHeaderSub: "Жаңа дәрі қосу, жоқ дәрілерді толтыру немесе мерзімі өтіп кеткендерді тізімнен алып тастау.",
+                btnAddMedicine: "Жаңа дәрі қосу",
+                thMedicineName: "Дәрі атауы",
+                thCategory: "Санат",
+                thPrice: "Бағасы",
+                thStock: "Қоймада",
+                thExpiry: "Жарамдылық мерзімі",
+                thStatus: "Күйі",
+                thActions: "Әрекеттер",
+                ordersHeaderTitle: "Түскен тапсырыстар тізімі",
+                ordersHeaderSub: "Клиенттердің тапсырыстарын қабылдау, жолға шығару және WhatsApp хабарламаларын автоматты жіберу.",
+                thClient: "Клиент",
+                thItems: "Тапсырыс құрамы",
+                thTotal: "Сомасы",
+                thDeliveryType: "Жеткізу түрі",
+                thOrderStatus: "Тапсырыс күйі",
+                trackingHeaderTitle: "Курьерлер картасы (демо координаттары)",
+                trackingHeaderSub: "Әкімші қолмен енгізген координаттар ғана көрсетіледі. Нақты уақыттағы GPS үшін сервер мен курьер қосымшасы қажет.",
+                refreshMap: "Жаңарту",
+                analyticsCategorySales: "Санаттар бойынша сатылым үлесі",
+                analyticsLossTitle: "Шығындар мен есептен шығарылған дәрілер (Минус)",
+                catNames: {
+                    pain: "Ауырғанды басатын",
+                    vitamins: "Витаминдер",
+                    antibiotics: "Антибиотиктер",
+                    cardio: "Жүрек-қан тамырлары",
+                    digestive: "Ас қорыту",
+                    respiratory: "Тыныс алу",
+                    allergy: "Аллергия",
+                    antiviral: "Вирусқа қарсы",
+                    sedatives: "Седативті",
+                    dermatology: "Тері аурулары",
+                    eyecare: "Көз күтімі",
+                    firstaid: "Алғашқы көмек",
+                    orthopedic: "Ортопедиялық",
+                    antiseptics: "Антисептиктер",
+                    pediatric: "Балалар дәрілері"
+                }
+            },
+            ru: {
+                bannerHours: "Режим работы: Круглосуточно (24/7). Доставка за 30 минут!",
+                logoSub: "Информационная Система Аптеки",
+                navHome: "Главная",
+                navCatalog: "Каталог лекарств",
+                navAbout: "О нас",
+                navContact: "Контакты",
+                btnLogin: "Вход",
+                btnRegister: "Регистрация",
+                clientStatus: "Клиент",
+                adminPanelBtn: "Админ Панель",
+                heroBadge: "Сертифицированные и безопасные медикаменты 24/7",
+                heroTitle: "Ваше здоровье — наша главная ценность",
+                heroSubtitle: "С помощью современной информационной системы аптеки находите более 300 лекарств в 15 категориях и заказывайте с доставкой на дом или самовывозом.",
+                heroBtnCatalog: "Смотреть лекарства",
+                heroBtnAccount: "Личный кабинет",
+                statCategories: "Категорий",
+                statMedicines: "Видов лекарств",
+                statSupport: "Режим работы",
+                cardFastOrder: "Быстрый заказ",
+                cardFastSub: "Лицензированная продукция",
+                activeBadge: "24/7 Открыто",
+                cardCategoryLabel: "Популярные категории",
+                cardAll: "Все",
+                catPain: "Обезболивающие",
+                catVitamins: "Витамины",
+                catAntibiotics: "Антибиотики",
+                catCardio: "Сердечно-сосудистые",
+                pharmacyAddressTitle: "Адрес аптеки:",
+                footerAddress: "г. Алматы, проспект Абая 150 (Круглосуточно)",
+                aboutTag: "О нас",
+                aboutTitle: "О системе PharmaCare Pro",
+                aboutDesc: "Наша информационная система создана для того, чтобы пациенты получали медикаменты высочайшего качества с рецептурным контролем и курьерской доставкой.",
+                aboutFeature1Title: "Высокий стандарт качества",
+                aboutFeature1Desc: "Все лекарства соответствуют международным стандартам качества и поставляются с проверенных заводов.",
+                aboutFeature2Title: "Быстрая и безопасная доставка",
+                aboutFeature2Desc: "Доставка курьерской службой по городу в течение 30 минут с соблюдением температурного режима.",
+                aboutFeature3Title: "Рецепт и безопасность",
+                aboutFeature3Desc: "Рецептурные препараты выдаются строго при наличии разрешения врача или загруженного рецепта.",
+                clientDashboardBadge: "Кабинет клиента",
+                clientDashboardSub: "Ищите среди тысяч лекарств в 15 категориях, смотрите аналоги и добавляйте в корзину в один клик.",
+                categoriesHeading: "Категории лекарств (15 категорий)",
+                showAllCategories: "Показать все",
+                emptySearchTitle: "Лекарства не найдены или нет в наличии",
+                emptySearchSub: "Попробуйте изменить поисковый запрос или выберите похожие альтернативные лекарства ниже.",
+                footerAbout: "Самая современная и надежная аптечная информационная система в Казахстане. Круглосуточная поддержка и быстрая доставка.",
+                footerNavTitle: "Быстрые ссылки",
+                footerCategoriesTitle: "Основные категории",
+                footerContactTitle: "Центр связи & WhatsApp",
+                footerCopy: "&copy; 2026 Информационная система аптеки PharmaCare Pro. Все права защищены.",
+                botTitle: "PharmaBot Помощник",
+                botSubtitle: "Отвечаю на вопросы 24/7",
+                botGreeting: "Добрый день! Я виртуальный помощник PharmaCare Pro. Какое лекарство или консультация вам нужны?",
+                loginModalTitle: "Вход в систему",
+                loginModalSub: "Войдите в кабинет клиента или администратора",
+                labelUsername: "Логин (Client или Admin)",
+                labelPassword: "Пароль (Password)",
+                loginHint: "Для админа введите логин: <b>admin</b>, пароль: <b>1234</b>.",
+                btnLoginSubmit: "Войти",
+                noAccountText: "Нет аккаунта?",
+                linkRegisterNow: "Зарегистрироваться",
+                registerModalTitle: "Регистрация клиента",
+                registerModalSub: "Создайте аккаунт для оформления заказов",
+                labelFullName: "ФИО",
+                btnRegisterSubmit: "Завершить регистрацию",
+                hasAccountText: "Есть аккаунт?",
+                linkLoginNow: "Войти",
+                cartModalTitle: "Ваша корзина",
+                prescriptionRequiredTitle: "Требуется рецепт врача",
+                prescriptionRequiredSub: "Некоторые лекарства в корзине рецептурные. Загрузите рецепт врача:",
+                deliveryMethodLabel: "Выберите способ получения:",
+                delCourier: "Доставка курьером",
+                delPickup: "Самовывоз",
+                paymentMethodLabel: "Выберите способ оплаты:",
+                subtotalLabel: "Сумма:",
+                totalLabel: "Итого:",
+                checkoutBtn: "Подтвердить заказ",
+                myOrdersTitle: "Мои заказы",
+                myOrdersSub: "Статус всех ваших активных и завершенных заказов",
+                modalAddMedTitle: "Добавить новое лекарство в склад",
+                modalAddMedSub: "Название, категория, цена и срок годности",
+                labelMedName: "Название лекарства",
+                labelMedCategory: "Категория",
+                labelMedPrice: "Цена (₸)",
+                labelMedStock: "Количество на складе",
+                labelMedExpiry: "Срок годности (Дата)",
+                btnAddMedSubmit: "Добавить на склад",
+                waSimTitle: "Сообщение WhatsApp",
+                inStock: "В наличии",
+                outOfStock: "Нет в наличии",
+                addToCart: "В корзину",
+                similarAlternative: "Похожий аналог:",
+                addedToCartMsg: "Лекарство добавлено в корзину!",
+                orderSuccessMsg: "Заказ успешно оформлен! Администратору отправлено WhatsApp уведомление.",
+                loginSuccessMsg: "Вы успешно вошли в систему!",
+                registerSuccessMsg: "Успешная регистрация!",
+                adminPanelTitle: "Система управления и контроля аптеки",
+                adminPanelSub: "Складской учет, отслеживание просрочки, финансовые отчеты и GPS-мониторинг курьеров.",
+                backToSite: "На сайт",
+                kpiDailySales: "Продажи за сегодня",
+                kpiDeficit: "Убыток / Минус",
+                kpiOrdersCount: "Заказы за сегодня",
+                kpiInventoryCount: "Препаратов на складе",
+                kpiDeficitSub: "Просроченные или списанные",
+                kpiInventorySub: "По 15 категориям",
+                adminTabInventory: "Склад & Просрочка",
+                adminTabOrders: "Управление заказами",
+                adminTabTracking: "Мониторинг курьеров (Карта)",
+                adminTabAnalytics: "Финансы и Отчеты",
+                invHeaderTitle: "Управление складскими запасами",
+                invHeaderSub: "Добавление новых лекарств, пополнение запасов или удаление просроченных товаров.",
+                btnAddMedicine: "Добавить лекарство",
+                thMedicineName: "Название",
+                thCategory: "Категория",
+                thPrice: "Цена",
+                thStock: "Запас",
+                thExpiry: "Срок годности",
+                thStatus: "Статус",
+                thActions: "Действия",
+                ordersHeaderTitle: "Список поступивших заказов",
+                ordersHeaderSub: "Прием заказов, отправка курьером и автоматическая рассылка WhatsApp уведомлений клиентам.",
+                thClient: "Клиент",
+                thItems: "Состав заказа",
+                thTotal: "Сумма",
+                thDeliveryType: "Доставка",
+                thOrderStatus: "Статус заказа",
+                trackingHeaderTitle: "Интерактивная карта курьеров в реальном времени",
+                trackingHeaderSub: "Отслеживание курьеров, доставляющих заказы по городу.",
+                refreshMap: "Обновить",
+                analyticsCategorySales: "Доля продаж по категориям",
+                analyticsLossTitle: "Убытки и списанные лекарства (Минус)",
+                catNames: {
+                    pain: "Обезболивающие",
+                    vitamins: "Витамины",
+                    antibiotics: "Антибиотики",
+                    cardio: "Сердечно-сосудистые",
+                    digestive: "Пищеварение",
+                    respiratory: "Дыхательные",
+                    allergy: "Аллергия",
+                    antiviral: "Противовирусные",
+                    sedatives: "Седативные",
+                    dermatology: "Дерматология",
+                    eyecare: "Для глаз",
+                    firstaid: "Первая помощь",
+                    orthopedic: "Ортопедические",
+                    antiseptics: "Антисептики",
+                    pediatric: "Детские"
+                }
+            },
+            en: {
+                bannerHours: "Working Hours: 24/7 Open. Delivery in 30 minutes!",
+                logoSub: "Pharmacy Information System",
+                navHome: "Home",
+                navCatalog: "Medicine Catalog",
+                navAbout: "About Us",
+                navContact: "Contact",
+                btnLogin: "Login",
+                btnRegister: "Register",
+                clientStatus: "Client",
+                adminPanelBtn: "Admin Panel",
+                heroBadge: "Certified & Safe Medicines 24/7",
+                heroTitle: "Your Health is Our Core Value",
+                heroSubtitle: "Easily find over 300 medicines across 15 categories, view substitutes, and order home delivery or self-pickup using our advanced pharmacy system.",
+                heroBtnCatalog: "Browse Medicines",
+                heroBtnAccount: "Create Account",
+                statCategories: "Categories",
+                statMedicines: "Medicines",
+                statSupport: "Hours",
+                cardFastOrder: "Fast Order",
+                cardFastSub: "Licensed Products",
+                activeBadge: "24/7 Open",
+                cardCategoryLabel: "Popular Categories",
+                cardAll: "All",
+                catPain: "Pain Relief",
+                catVitamins: "Vitamins",
+                catAntibiotics: "Antibiotics",
+                catCardio: "Cardiovascular",
+                pharmacyAddressTitle: "Pharmacy Address:",
+                footerAddress: "Almaty city, Abay Avenue 150 (24/7)",
+                aboutTag: "About Us",
+                aboutTitle: "About PharmaCare Pro System",
+                aboutDesc: "Our pharmacy information system provides patients with top-quality medications with prescription verification and courier delivery.",
+                aboutFeature1Title: "High Quality Standard",
+                aboutFeature1Desc: "All medicines comply with international quality standards and are sourced from certified pharmaceutical plants.",
+                aboutFeature2Title: "Fast & Secure Delivery",
+                aboutFeature2Desc: "Courier delivery across the city within 30 minutes with strict temperature control.",
+                aboutFeature3Title: "Prescription & Safety",
+                aboutFeature3Desc: "Prescription medications are dispensed strictly upon doctor's permission or uploaded prescription.",
+                clientDashboardBadge: "Client Dashboard",
+                clientDashboardSub: "Search thousands of medicines in 15 categories, view alternative substitutes, and add to cart instantly.",
+                categoriesHeading: "Medicine Categories (15 Categories)",
+                showAllCategories: "Show All",
+                emptySearchTitle: "No Medicines Found or Out of Stock",
+                emptySearchSub: "Try changing your search or pick similar alternative medicines suggested below.",
+                footerAbout: "The most advanced and reliable pharmacy information system in Kazakhstan. 24/7 support and rapid delivery.",
+                footerNavTitle: "Quick Links",
+                footerCategoriesTitle: "Main Categories",
+                footerContactTitle: "Contact Center & WhatsApp",
+                footerCopy: "&copy; 2026 PharmaCare Pro Pharmacy Info System. All rights reserved.",
+                botTitle: "PharmaBot Assistant",
+                botSubtitle: "Answering your questions 24/7",
+                botGreeting: "Good day! I am PharmaCare Pro virtual assistant. What medicine or advice do you need?",
+                loginModalTitle: "Sign In",
+                loginModalSub: "Sign in to client or admin dashboard",
+                labelUsername: "Username (Client or Admin)",
+                labelPassword: "Password",
+                loginHint: "For admin login, use: <b>admin</b>, password: <b>1234</b>.",
+                btnLoginSubmit: "Sign In",
+                noAccountText: "Don't have an account?",
+                linkRegisterNow: "Register",
+                registerModalTitle: "Client Registration",
+                registerModalSub: "Create a new account to place orders",
+                labelFullName: "Full Name",
+                btnRegisterSubmit: "Complete Registration",
+                hasAccountText: "Already have an account?",
+                linkLoginNow: "Sign In",
+                cartModalTitle: "Your Shopping Cart",
+                prescriptionRequiredTitle: "Doctor's Prescription Required",
+                prescriptionRequiredSub: "Some items in your cart require a prescription. Please upload a doctor's permission:",
+                deliveryMethodLabel: "Select Delivery Method:",
+                delCourier: "Home Delivery (Courier)",
+                delPickup: "Pharmacy Pickup",
+                paymentMethodLabel: "Select Payment Method:",
+                subtotalLabel: "Subtotal:",
+                totalLabel: "Total:",
+                checkoutBtn: "Confirm Order",
+                myOrdersTitle: "My Orders",
+                myOrdersSub: "Status of all your active and completed orders",
+                modalAddMedTitle: "Add New Medicine to Stock",
+                modalAddMedSub: "Name, category, price and expiration date",
+                labelMedName: "Medicine Name",
+                labelMedCategory: "Category",
+                labelMedPrice: "Price (₸)",
+                labelMedStock: "Stock Quantity",
+                labelMedExpiry: "Expiration Date",
+                btnAddMedSubmit: "Add to Inventory",
+                waSimTitle: "WhatsApp Message",
+                inStock: "In Stock",
+                outOfStock: "Out of Stock",
+                addToCart: "Add to Cart",
+                similarAlternative: "Similar Alternative:",
+                addedToCartMsg: "Medicine added to cart!",
+                orderSuccessMsg: "Order successfully placed! WhatsApp notification sent to admin.",
+                loginSuccessMsg: "Successfully logged in!",
+                registerSuccessMsg: "Successfully registered!",
+                adminPanelTitle: "Pharmacy Management & Control System",
+                adminPanelSub: "Inventory tracking, expiration auditing, financial statements, and real-time courier GPS monitoring.",
+                backToSite: "Back to Site",
+                kpiDailySales: "Today's Sales",
+                kpiDeficit: "Loss / Deficit",
+                kpiOrdersCount: "Today's Orders",
+                kpiInventoryCount: "Items in Stock",
+                kpiDeficitSub: "Expired or written off",
+                kpiInventorySub: "Across 15 categories",
+                adminTabInventory: "Inventory & Expiry",
+                adminTabOrders: "Order Management",
+                adminTabTracking: "Courier Tracking (Map)",
+                adminTabAnalytics: "Finance & Reports",
+                invHeaderTitle: "Inventory Management",
+                invHeaderSub: "Add new medicines, restock items, or remove expired products from the catalog.",
+                btnAddMedicine: "Add Medicine",
+                thMedicineName: "Medicine Name",
+                thCategory: "Category",
+                thPrice: "Price",
+                thStock: "Stock",
+                thExpiry: "Expiration Date",
+                thStatus: "Status",
+                thActions: "Actions",
+                ordersHeaderTitle: "Incoming Orders List",
+                ordersHeaderSub: "Accept orders, dispatch couriers, and automatically dispatch WhatsApp notifications to clients.",
+                thClient: "Client",
+                thItems: "Order Items",
+                thTotal: "Total",
+                thDeliveryType: "Delivery Type",
+                thOrderStatus: "Order Status",
+                trackingHeaderTitle: "Real-Time Courier Live Tracking",
+                trackingHeaderSub: "Interactive map showing couriers delivering orders across the city.",
+                refreshMap: "Refresh",
+                analyticsCategorySales: "Sales Share by Category",
+                analyticsLossTitle: "Losses & Written-off Medicines (Deficit)",
+                catNames: {
+                    pain: "Pain Relief",
+                    vitamins: "Vitamins",
+                    antibiotics: "Antibiotics",
+                    cardio: "Cardiovascular",
+                    digestive: "Digestive",
+                    respiratory: "Respiratory",
+                    allergy: "Allergy",
+                    antiviral: "Antiviral",
+                    sedatives: "Sedatives",
+                    dermatology: "Dermatology",
+                    eyecare: "Eye Care",
+                    firstaid: "First Aid",
+                    orthopedic: "Orthopedic",
+                    antiseptics: "Antiseptics",
+                    pediatric: "Pediatric"
+                }
+            }
+        };
+
+        let currentLang = 'kk';
+        let currentUser = null;
+        let isAdmin = false;
+        let selectedCategory = 'all';
+        let cart = [];
+        let deliveryType = 'courier';
+        let paymentMethod = 'cash';
+        let ordersDatabase = [];
+        let clientOrders = [];
+
+        // --- 15 MEDICINE CATEGORIES & DATA GENERATION ---
+        const categoryKeys = [
+            'pain', 'vitamins', 'antibiotics', 'cardio', 'digestive',
+            'respiratory', 'allergy', 'antiviral', 'sedatives', 'dermatology',
+            'eyecare', 'firstaid', 'orthopedic', 'antiseptics', 'pediatric'
+        ];
+
+        const categoryIcons = {
+            pain: 'fa-capsules text-rose-500',
+            vitamins: 'fa-carrot text-amber-500',
+            antibiotics: 'fa-shield-virus text-brand-600',
+            cardio: 'fa-heart-pulse text-red-600',
+            digestive: 'fa-utensils text-emerald-600',
+            respiratory: 'fa-lungs text-blue-500',
+            allergy: 'fa-wind text-teal-500',
+            antiviral: 'fa-virus text-purple-600',
+            sedatives: 'fa-moon text-indigo-500',
+            dermatology: 'fa-hand-dots text-orange-500',
+            eyecare: 'fa-eye text-cyan-600',
+            firstaid: 'fa-kit-medical text-rose-600',
+            orthopedic: 'fa-bone text-stone-600',
+            antiseptics: 'fa-pump-soap text-sky-500',
+            pediatric: 'fa-baby text-pink-500'
+        };
+
+        let medicinesDatabase = [];
+        const medicineTemplates = {
+            pain: ["Ибупрофен 400мг", "Парацетамол 500мг", "Кетанов таблетка", "Цитрамон П", "Нимесил ұнтақ", "Анальгин ампула", "Спазмалгон", "Темпалгин", "Дексалгин", "Нурофен Форте", "Баралгин М", "Пенталгин", "Аэртал крем", "Вольтарен гель", "Кетонал капсула", "Мелоксикам", "Целекоксиб", "Панадол детски", "Эффералган", "Аскофен"],
+            vitamins: ["Компливит Актив", "Витамин C 1000мг", "Аквадетрим Д3", "Магний В6 Форте", "Цинктерал", "Омега-3 рыбный жир", "Мультивитамин комплекс", "Кальций Д3 Никомед", "Фолиевая кислота", "Витамин Е капсулы", "Биотин для волос", "Супрадин энерджи", "Витрум бьюти", "Элевит Пронаталь", "Алфавит классик", "Доппельгерц актив", "Солгар Железо", "Спирулина таблетки", "Коэнзим Q10", "Пивные дрожжи"],
+            antibiotics: ["Амоксициллин 500мг", "Азитромицин 500мг", "Ципрофлоксацин", "Цефтриаксон порошок", "Амоксиклав", "Сумамед", "Левофлоксацин", "Кларитромицин", "Доксициклин", "Юнидокс Солютаб", "Флемоксин Солютаб", "Супракс солютаб", "Цефиксим", "Аугментин", "Метронидазол", "Линкомицин", "Гентамицин ампула", "Тетрациклин мазь", "Эритромицин", "Бициллин-5"],
+            cardio: ["Конкор 5мг", "Кардиомагнил", "Валидол таблетка", "Нитроглицерин", "Аторвастатин", "Лозартан", "Эналаприл", "Аспирин Кардио", "Бисопролол", "Периндоприл", "Амлодипин", "Клопидогрел", "Рамиприл", "Варфарин", "Карведилол", "Индапамид", "Тромбо АСС", "Небиволол", "Ренгиза", "Тризипин"],
+            digestive: ["Мезим Форте", "Фестал 10000", "Омепразол капсула", "Панкреатин", "Смекта ұнтақ", "Активированный уголь", "Эспумизан бейби", "Мотилиум", "Ренни таблетки", "Маалокс суспензия", "Урсосан капсула", "Гевискон двойное действие", "Линекс форте", "Бифиформ", "Фосфалюгель", "Дюспаталин", "Омез капсулы", "Энтеросгель", "Лактофильтрум", "Мотижект"],
+            respiratory: ["Амброксол сироп", "Лазолван раствор", "Бромгексин", "АЦЦ 600 шипучие", "Стоптуссин", "Мукалтин", "Синекод сироп", "Гербион подорожник", "Флюдитек", "Пульмикорт суспензия", "Беродуал раствор", "Сальбутамол аэрозоль", "Тантум Верде спрей", "Ингалипт", "Каметон аэрозоль", "Граммидин спрей", "Фарингосепт", "Стрепсилс таблетки", "Доктор Мом сироп", "Эреспал"],
+            allergy: ["Цетрин таблетки", "Лоратадин", "Супрастин ампула", "Зиртек капли", "Эриус сироп", "Кларитин", "Телфаст 120мг", "Диазолин", "Тавегил", "Фенистил гель", "Кетотифен", "Назонекс спрей", "Аллергодил", "Кромогексал", "Парлазин", "Дезал", "Эдем сироп", "Азеластин", "Фексофенадин", "Рьюфит"],
+            antiviral: ["Арбидол капсулы", "Кагоцел", "Ингавирин 90мг", "Анаферон", "Оциллококцинум", "Виферон свечи", "Гриппферон капли", "Ацикловир мазь", "Циклоферон", "Эргоферон", "Амиксин", "Ренгалин", "Ремантадин", "Афлубин капли", "Бронхо-Ваксом", "Иммунал", "Полиоксидоний", "Триазавирин", "Изопринозин", "Гроприносин"],
+            sedatives: ["Глицин таблетки", "Ново-Пассит сироп", "Персен капсулы", "Валериана экстракт", "Пустырник форте", "Афобазол", "Тенотен", "Феназепам рецептурный", "Мексидол", "Глицисед", "Магнелис Б6", "Нервохель", "Донормил", "Соннат", "Стрессплант", "Тексамен", "Адаптол", "Элениум", "Барбовал капли", "Корвалол"],
+            dermatology: ["Бепантен мазь", "Левомеколь мазь", "Цинковая мазь", "Акридерм крем", "Экзодерил раствор", "Клотримазол", "Тетрациклиновая мазь", "Банеоцин порошок", "Фукорцин раствор", "Йод раствор", "Зеленка", "Перекись водорода", "Пантенол спрей", "Радевит мазь", "Гидрокортизоновая мазь", "Синафлан", "Элоком мазь", "Кетконазол", "Салициловая кислота", "Латикорт"],
+            eyecare: ["Визин капли", "Тобрекс капли", "Окомистин", "Альбуцид (Сульфацил натрия)", "Систейн Ультра", "Искусственная слеза", "Тауфон капли", "Флоксал капли", "Квинакс", "Офтагель", "Левомицетин капли", "Атропин", "Трусопт", "Ксалатан", "Дексаметазон капли", "Корнерегель", "Баларпан", "Витасик", "Офтолик", "Ультракаин"],
+            firstaid: ["Бинт стерильный", "Вата медицинская", "Пластырь бактерицидный", "Жгут кровоостанавливающий", "Салфетки спиртовые", "Перевязочный пакет", "Ножницы медицинские", "Термометр электронный", "Тонометр автоматический", "Аптечка автомобильная", "Шприц 5мл", "Перчатки медицинские", "Аммиака раствор (Нашатырь)", "Уголь активированный", "Бриллиантовый зеленый", "Перекись 3%", "Лейкопластырь рулонный", "Эластичный бинт", "Термометр ртутный", "Шприц 2мл"],
+            orthopedic: ["Наколенник эластичный", "Корсет поясничный", "Фиксатор голеностопа", "Шан воротник (шейный)", "Налокотник эластичный", "Пояс согревающий", "Стельки ортопедические", "Корректор осанки", "Бандаж грыжевой", "Фиксатор лучезапястный", "Тейп спортивный", "Трость медицинская", "Костыли алюминиевые", "Ходунки для взрослых", "Подушка ортопедическая", "Матрас противопролежневый", "Бандаж послеоперационный", "Напальчник ортопедический", "Межпальцевая перегородка", "Фиксатор пальца"],
+            antiseptics: ["Хлоргексидин 0.05%", "Мирамистин раствор", "Перекись водорода 3%", "Спирт медицинский 96%", "Септефрил", "Октенисепт", "Йодинол", "Этакридина лактат", "Фукорцин", "Марганцовка кристаллы", "Борная кислота", "Салициловый спирт", "Гель антисептический", "Салфетки антисептические", "Спрей антисептик", "Дезавид", "Акутол спрей", "Лизагин", "Дезэфект", "Алмадез"],
+            pediatric: ["Нурофен детский суспензия", "Панадол детский сироп", "Виферон свечи детские", "Аква Марис бэби", "Називин детские капли", "Эспумизан бейби капли", "Плантекс чай", "Боботик капли", "Гематоген детский", "Супрастин капли", "Зиртек капли", "Пантогам сироп", "Элькар раствор", "Витамин Д3 бэби", "Гель при прорезывании зубов", "Калгель", "Дентинокс", "Биогая капли", "Смекта порционная", "Линекс бейби"]
+        };
+
+        function initDatabase() {
+            let idCounter = 1;
+            categoryKeys.forEach(catKey => {
+                const names = medicineTemplates[catKey] || [];
+                for (let i = 0; i < 20; i++) {
+                    const name = names[i] || (`${catKey.toUpperCase()} Дәрі №${i+1}`);
+                    const price = Math.floor(Math.random() * 4500) + 450;
+                    // Generate random stock (some 0 for out-of-stock testing)
+                    const stock = (i === 3 || i === 12) ? 0 : (Math.floor(Math.random() * 80) + 5);
+                    // Generate expiration date (some near expiry or expired for admin removal testing)
+                    let expiryDate = new Date();
+                    expiryDate.setMonth(expiryDate.getMonth() + (i === 1 ? -1 : (i === 5 ? 1 : 12))); 
+                    
+                    medicinesDatabase.push({
+                        id: idCounter++,
+                        category: catKey,
+                        name: name,
+                        price: price,
+                        stock: stock,
+                        expiry: expiryDate.toISOString().split('T')[0],
+                        rating: (4.0 + Math.random() * 1.0).toFixed(1)
+                    });
+                }
+            });
+        }
+        initDatabase();
+        try { const saved=JSON.parse(localStorage.getItem('pharma_demo_medicines')); if(Array.isArray(saved) && saved.length) medicinesDatabase=saved; }catch(e){}
+        try { ordersDatabase=JSON.parse(localStorage.getItem('pharma_demo_orders')||'[]'); }catch(e){}
+        function persistDemo(){try{localStorage.setItem('pharma_demo_medicines',JSON.stringify(medicinesDatabase));localStorage.setItem('pharma_demo_orders',JSON.stringify(ordersDatabase));}catch(e){showToast('Браузер сақтау орны толды','warning');}}
+        function htmlSafe(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+        let pharmacySettings={phone:'77078911802',address:'',qr:''};
+        try{pharmacySettings={...pharmacySettings,...JSON.parse(localStorage.getItem('pharma_demo_settings')||'{}')}}catch(e){}
+        // Сайт иесі ұсынған WhatsApp нөмірі; ескі демо нөмірлерді алмастырамыз.
+        pharmacySettings.phone='77078911802';
+        function updateContactLinks(){const a=document.getElementById('topWhatsapp'),b=document.getElementById('footerWhatsapp'),c=document.getElementById('footerWhatsappText');const n=pharmacySettings.phone;if(n){a.textContent='WhatsApp: +'+normalizePhone(n);a.href=waLink(n);b.href=waLink(n);c.textContent='+'+normalizePhone(n);c.href=waLink(n);}else{a.textContent='WhatsApp нөмірі бапталмаған';a.removeAttribute('href');b.removeAttribute('href');c.textContent='WhatsApp нөмірі бапталмаған';c.removeAttribute('href');}}
+        function savePharmacySettings(){const n=normalizePhone(document.getElementById('adminWhatsappPhone').value);if(n && (n.length<10||n.length>15)){showToast('WhatsApp нөмірін тексеріңіз','warning');return;}pharmacySettings.phone=n;pharmacySettings.address=document.getElementById('adminPharmacyAddress').value.trim();const file=document.getElementById('adminKaspiQr').files[0];const save=()=>{try{localStorage.setItem('pharma_demo_settings',JSON.stringify(pharmacySettings));updateContactLinks();showToast('Баптаулар сақталды','success')}catch(e){showToast('QR суреті тым үлкен болуы мүмкін','warning')}};if(file){if(!file.type.startsWith('image/')||file.size>750000){showToast('QR суреті 750 КБ дейін болсын','warning');return;}const r=new FileReader();r.onload=()=>{pharmacySettings.qr=r.result;save()};r.readAsDataURL(file);}else save();}
+        function renderPaymentQr(){const box=document.getElementById('kaspiQrBox');box.classList.toggle('hidden',paymentMethod!=='qr');const image=document.getElementById('kaspiQrImage');image.classList.toggle('hidden',!pharmacySettings.qr);if(pharmacySettings.qr)image.src=pharmacySettings.qr;document.getElementById('kaspiQrMissing').classList.toggle('hidden',!!pharmacySettings.qr);}
+        function previewMedicineImage(input){const file=input.files[0],img=document.getElementById('newMedPreview');img.classList.add('hidden');if(!file)return;if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>1000000){showToast('PNG/JPG/WebP, 1 МБ дейін','warning');input.value='';return;}const r=new FileReader();r.onload=()=>{img.src=r.result;img.classList.remove('hidden')};r.readAsDataURL(file);}
+
+
+        // --- LANGUAGE SWITCHING ---
+        function changeLanguage(lang) {
+            currentLang = lang;
+            document.getElementById('langSelector').value = lang;
+            
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[lang] && translations[lang][key]) {
+                    el.innerHTML = translations[lang][key];
+                }
+            });
+
+            if (currentUser && !isAdmin) {
+                renderCategories();
+                renderMedicines();
+            } else if (isAdmin) {
+                renderAdminInventory();
+                renderAdminOrders();
+            }
+        }
+
+        // --- NAVIGATION & VIEWS ---
+        function navigateHome() {
+            document.getElementById('landingView').classList.remove('hidden');
+            document.getElementById('catalogView').classList.add('hidden');
+            document.getElementById('adminDashboardView').classList.add('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function openCatalogDirect() {
+            if (!currentUser) {
+                openModal('loginModal');
+                showToast(currentLang === 'kk' ? 'Алдымен жүйеге кіриңіз немесе тіркеліңіз!' : (currentLang === 'ru' ? 'Сначала войдите или зарегистрируйтесь!' : 'Please login or register first!'), 'warning');
+                return;
+            }
+            if (isAdmin) { openAdminDashboard(); return; }
+            document.getElementById('landingView').classList.add('hidden');
+            document.getElementById('catalogView').classList.remove('hidden');
+            document.getElementById('adminDashboardView').classList.add('hidden');
+            renderCategories();
+            renderMedicines();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function openAdminDashboard() {
+            if (!isAdmin || !currentUser) { showToast('Админ панелі үшін админ ретінде кіріңіз', 'warning'); openModal('loginModal'); return; }
+            document.getElementById('landingView').classList.add('hidden');
+            document.getElementById('catalogView').classList.add('hidden');
+            document.getElementById('adminDashboardView').classList.remove('hidden');
+            renderAdminInventory();
+            renderAdminOrders();
+            renderDeliveryManagement();
+            renderAdminAnalytics();
+            // Карта тек 'Курьерлерді қадағалау' қойындысы ашылғанда жасалады.
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function scrollToAbout() {
+            navigateHome();
+            setTimeout(() => {
+                document.getElementById('about').scrollIntoView({ behavior: 'smooth' });
+            }, 100);
+        }
+
+        function scrollToContacts() {
+            document.getElementById('contacts').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobileMenu');
+            menu.classList.toggle('hidden');
+        }
+
+        // --- AUTHENTICATION & USER SESSIONS ---
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.remove('hidden');
+            document.getElementById(modalId).classList.add('flex');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+            document.getElementById(modalId).classList.remove('flex');
+        }
+
+        function switchModal(closeId, openId) {
+            closeModal(closeId);
+            openModal(openId);
+        }
+
+        // Демо авторизация: деректер тек осы браузерде сақталады.
+        // Нақты сайтта пайдаланушылар мен құпиясөздер серверде қауіпсіз сақталуы тиіс.
+        const USERS_KEY = 'pharma_demo_users_v2';
+        const SESSION_KEY = 'pharma_demo_session_v2';
+        let userPhone = '';
+        const normalizePhone = v => (v || '').replace(/\D/g,'');
+        const waLink = (phone,msg='') => 'https://wa.me/' + normalizePhone(phone) + (msg ? '?text='+encodeURIComponent(msg) : '');
+
+        function getRegisteredUsers() {
+            try {
+                const data = JSON.parse(localStorage.getItem(USERS_KEY) || '[]');
+                return Array.isArray(data) ? data : [];
+            } catch (e) { return []; }
+        }
+        function handleLogin(event) {
+            event.preventDefault();
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            if (username.toLowerCase() === 'admin' && password === '1234') {
+                isAdmin = true;
+                currentUser = 'Администратор';
+                userPhone = '';
+                sessionStorage.setItem(SESSION_KEY, JSON.stringify({name:currentUser,admin:true}));
+                closeModal('loginModal');
+                updateUIAfterAuth();
+                showToast('Админ панеліне сәтті кірдіңіз', 'success');
+                openAdminDashboard();
+                return;
+            }
+            const client = getRegisteredUsers().find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
+            if (!client) {
+                showToast('Логин немесе құпия сөз қате. Алдымен тіркеліңіз.', 'warning');
+                return;
+            }
+            currentUser = client.name;
+            userPhone = client.phone;
+            isAdmin = false;
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify({name:currentUser,phone:userPhone,admin:false}));
+            closeModal('loginModal');
+            updateUIAfterAuth();
+            showToast('Клиент кабинетіне сәтті кірдіңіз', 'success');
+            openCatalogDirect();
+        }
+        function handleRegister(event) {
+            event.preventDefault();
+            const fullname = document.getElementById('regName').value.trim();
+            const username = document.getElementById('regUsername').value.trim();
+            const password = document.getElementById('regPassword').value;
+            let phone = normalizePhone(document.getElementById('regPhone').value);
+            if (phone.length === 11 && phone.startsWith('8')) phone = '7' + phone.slice(1);
+            if (!fullname || !username || !password) {
+                showToast('Барлық өрісті толтырыңыз', 'warning'); return;
+            }
+            if (username.toLowerCase() === 'admin') {
+                showToast('admin логині клиентке арналмаған', 'warning'); return;
+            }
+            if (phone.length !== 11 || !phone.startsWith('7')) {
+                showToast('WhatsApp нөмірін +7 707 123 45 67 форматында енгізіңіз', 'warning'); return;
+            }
+            if (password.length < 4) {
+                showToast('Құпия сөз кемінде 4 таңба болсын', 'warning'); return;
+            }
+            const users = getRegisteredUsers();
+            if (users.some(u => u.username.toLowerCase() === username.toLowerCase())) {
+                showToast('Бұл логин тіркелген. Кіру бөлімін пайдаланыңыз.', 'warning'); return;
+            }
+            users.push({name:fullname,username,password,phone});
+            try {
+                localStorage.setItem(USERS_KEY, JSON.stringify(users));
+                sessionStorage.setItem(SESSION_KEY,JSON.stringify({name:fullname,phone,admin:false}));
+            } catch (e) {
+                showToast('Браузер деректерді сақтай алмады. Жеке режимді тексеріңіз.', 'warning');return;
+            }
+            userPhone = phone;
+            currentUser = fullname;
+            isAdmin = false;
+            closeModal('registerModal');
+            updateUIAfterAuth();
+            showToast('Тіркелу сәтті аяқталды', 'success');
+            document.getElementById('registerForm').reset();
+            openCatalogDirect();
+        }
+
+        function updateUIAfterAuth() {
+            if (currentUser) {
+                document.getElementById('authActions').classList.add('hidden');
+                if (isAdmin) {
+                    document.getElementById('userProfileArea').classList.add('hidden');
+                    document.getElementById('adminProfileArea').classList.remove('hidden');
+                    document.getElementById('adminProfileArea').classList.add('flex');
+                } else {
+                    document.getElementById('adminProfileArea').classList.add('hidden');
+                    document.getElementById('userProfileArea').classList.remove('hidden');
+                    document.getElementById('userProfileArea').classList.add('flex');
+                    document.getElementById('userNameDisplay').innerText = currentUser;
+                    document.getElementById('userAvatar').innerText = currentUser.charAt(0).toUpperCase();
+                    document.getElementById('welcomeUserTitle').innerText = (currentLang === 'kk' ? 'Қош келдіңіз, ' : (currentLang === 'ru' ? 'Добро пожаловать, ' : 'Welcome, ')) + currentUser + '!';
+                }
+            } else {
+                document.getElementById('authActions').classList.remove('hidden');
+                document.getElementById('userProfileArea').classList.add('hidden');
+                document.getElementById('adminProfileArea').classList.add('hidden');
+            }
+        }
+
+        function logoutUser() {
+            sessionStorage.removeItem(SESSION_KEY);
+            userPhone = '';
+            currentUser = null;
+            isAdmin = false;
+            updateUIAfterAuth();
+            cart = [];
+            updateCartBadge();
+            navigateHome();
+            showToast(currentLang === 'kk' ? 'Жүйеден шықтыңыз' : (currentLang === 'ru' ? 'Вы вышли из системы' : 'Logged out successfully'), 'info');
+        }
+
+        // --- CATALOG & SMART ALTERNATIVE SUBSTITUTIONS ---
+        function renderCategories() {
+            const container = document.getElementById('categoriesContainer');
+            let html = `
+                <button onclick="selectCategory('all')" class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold whitespace-nowrap transition shadow-sm flex items-center gap-2 ${selectedCategory === 'all' ? 'bg-medical-600 text-white shadow-md shadow-medical-500/20' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}">
+                    <i class="fa-solid fa-border-all"></i>
+                    <span>${currentLang === 'kk' ? 'Барлық санаттар' : (currentLang === 'ru' ? 'Все категории' : 'All Categories')}</span>
+                </button>
+            `;
+
+            categoryKeys.forEach(catKey => {
+                const catName = translations[currentLang].catNames[catKey] || catKey;
+                const iconClass = categoryIcons[catKey] || 'fa-pills text-medical-600';
+                const isSelected = selectedCategory === catKey;
+                
+                html += `
+                    <button onclick="selectCategory('${catKey}')" class="px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold whitespace-nowrap transition shadow-sm flex items-center gap-2 ${isSelected ? 'bg-medical-600 text-white shadow-md shadow-medical-500/20' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}">
+                        <i class="fa-solid ${iconClass}"></i>
+                        <span>${catName}</span>
+                    </button>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function selectCategory(catKey) {
+            selectedCategory = catKey;
+            renderCategories();
+            renderMedicines();
+        }
+
+        function filterMedicines() {
+            renderMedicines();
+        }
+
+        function renderMedicines() {
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+            const grid = document.getElementById('medicinesGrid');
+            const emptyState = document.getElementById('emptySearchState');
+            const countBadge = document.getElementById('productCountBadge');
+            const categoryTitleEl = document.getElementById('currentCategoryTitle');
+
+            if (selectedCategory === 'all') {
+                categoryTitleEl.innerText = currentLang === 'kk' ? 'Барлық дәрілер (300+ өнім)' : (currentLang === 'ru' ? 'Все лекарства (300+ товаров)' : 'All Medicines (300+ items)');
+            } else {
+                categoryTitleEl.innerText = translations[currentLang].catNames[selectedCategory] || selectedCategory;
+            }
+
+            const filtered = medicinesDatabase.filter(med => {
+                const matchCategory = selectedCategory === 'all' || med.category === selectedCategory;
+                const matchSearch = med.name.toLowerCase().includes(searchQuery);
+                return matchCategory && matchSearch;
+            });
+
+            countBadge.innerText = `${filtered.length} ${currentLang === 'kk' ? 'өнім' : (currentLang === 'ru' ? 'товаров' : 'items')}`;
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            let html = '';
+
+            filtered.forEach(med => {
+                const catLocalized = translations[currentLang].catNames[med.category] || med.category;
+                const iconCls = categoryIcons[med.category] || 'fa-pills text-medical-600';
+                const isOut = med.stock === 0 || med.expiry < new Date().toISOString().slice(0,10);
+
+                // Find a smart alternative in the same category if out of stock
+                let alternativeHtml = '';
+                if (isOut) {
+                    const alt = medicinesDatabase.find(m => m.category === med.category && m.stock > 0 && m.id !== med.id);
+                    if (alt) {
+                        alternativeHtml = `
+                            <div class="mt-3 p-2 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 space-y-1">
+                                <span class="font-bold flex items-center gap-1"><i class="fa-solid fa-lightbulb text-amber-600"></i> ${translations[currentLang].similarAlternative}</span>
+                                <div class="flex items-center justify-between">
+                                    <span class="font-medium text-slate-700">${alt.name}</span>
+                                    <button onclick="addToCart(${alt.id})" class="px-2 py-1 bg-amber-600 text-white font-bold rounded-lg hover:bg-amber-700 transition">Алу</button>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+
+                html += `
+                    <div class="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm hover:shadow-md transition flex flex-col justify-between group">
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="px-2.5 py-1 bg-medical-50 text-medical-700 rounded-lg text-[11px] font-semibold flex items-center gap-1.5">
+                                    <i class="fa-solid ${iconCls}"></i>
+                                    ${catLocalized}
+                                </span>
+                                <div class="flex items-center gap-1 text-xs font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-lg">
+                                    <i class="fa-solid fa-star"></i>
+                                    <span>${med.rating}</span>
+                                </div>
+                            </div>
+                            ${med.image ? `<img src="${med.image}" alt="${htmlSafe(med.name)}" class="w-full h-40 object-contain rounded-xl bg-slate-50">` : ''}
+                            <div class="pt-2">
+                                <h4 class="font-bold text-slate-800 text-base group-hover:text-medical-600 transition">${med.name}</h4>
+                                <p class="text-xs mt-1 ${isOut ? 'text-rose-600 font-bold' : 'text-slate-400'}">
+                                    <i class="fa-solid ${isOut ? 'fa-triangle-exclamation' : 'fa-check'} mr-1"></i> 
+                                    ${isOut ? translations[currentLang].outOfStock : (translations[currentLang].inStock + ' (' + med.stock + ')')}
+                                </p>
+                            </div>
+                            ${alternativeHtml}
+                        </div>
+                        <div class="pt-6 flex items-center justify-between border-t border-slate-100 mt-4">
+                            <div>
+                                <span class="text-[10px] text-slate-400 block">Бағасы</span>
+                                <span class="text-lg font-extrabold text-slate-900">${med.price.toLocaleString()} ₸</span>
+                            </div>
+                            ${isOut ? `
+                                <button disabled class="px-4 py-2.5 bg-slate-200 text-slate-400 font-semibold rounded-xl text-xs cursor-not-allowed">Жоқ</button>
+                            ` : `
+                                <button onclick="addToCart(${med.id})" class="px-4 py-2.5 bg-medical-600 hover:bg-medical-700 text-white font-semibold rounded-xl text-xs shadow-md shadow-medical-500/20 transition flex items-center gap-2">
+                                    <i class="fa-solid fa-cart-plus"></i>
+                                    <span data-i18n="addToCart">Себетке</span>
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            });
+
+            grid.innerHTML = html;
+        }
+
+        // --- CART & CHECKOUT WITH WHATSAPP SIMULATION ---
+        function addToCart(medId) {
+            const med = medicinesDatabase.find(m => m.id === medId);
+            if (!med || med.stock === 0 || med.expiry < new Date().toISOString().slice(0,10)) return;
+
+            const existing = cart.find(item => item.id === medId);
+            if (existing) {
+                if(existing.quantity >= med.stock){showToast("Қоймада жеткілікті дәрі жоқ", "warning");return;} existing.quantity += 1;
+            } else {
+                cart.push({ ...med, quantity: 1 });
+            }
+
+            updateCartBadge();
+            showToast(translations[currentLang].addedToCartMsg, 'success');
+        }
+
+        function updateCartBadge() {
+            const totalCount = cart.reduce((sum, item) => sum + item.quantity, 0);
+            document.getElementById('cartBadge').innerText = totalCount;
+        }
+
+        function openCartModal() {
+            renderCartItems();
+            document.getElementById('cartModal').classList.remove('hidden');
+            document.getElementById('cartModal').classList.add('flex');
+        }
+
+        function closeCartModal() {
+            document.getElementById('cartModal').classList.add('hidden');
+            document.getElementById('cartModal').classList.remove('flex');
+        }
+
+        function setDeliveryType(type) {
+            deliveryType = type;
+            document.getElementById('deliveryCourierBtn').className = "p-2.5 rounded-xl border-2 transition flex items-center justify-center gap-1.5 " + (type === 'courier' ? "border-medical-600 bg-medical-50 text-medical-700" : "border-slate-200 bg-white text-slate-600");
+            document.getElementById('deliveryPickupBtn').className = "p-2.5 rounded-xl border-2 transition flex items-center justify-center gap-1.5 " + (type === 'pickup' ? "border-medical-600 bg-medical-50 text-medical-700" : "border-slate-200 bg-white text-slate-600"); document.getElementById("deliveryAddressBox").classList.toggle("hidden",type!=="courier");
+        }
+
+        function setPaymentMethod(method) {
+            paymentMethod = method;
+            document.getElementById('payCashBtn').className = "p-2.5 rounded-xl border-2 transition " + (method === 'cash' ? "border-medical-600 bg-medical-50 text-medical-700" : "border-slate-200 bg-white text-slate-600");
+            document.getElementById('payCardBtn').className = "p-2.5 rounded-xl border-2 transition " + (method === 'card' ? "border-medical-600 bg-medical-50 text-medical-700" : "border-slate-200 bg-white text-slate-600");
+            document.getElementById('payQrBtn').className = "p-2.5 rounded-xl border-2 transition " + (method === 'qr' ? "border-medical-600 bg-medical-50 text-medical-700" : "border-slate-200 bg-white text-slate-600");renderPaymentQr();
+        }
+
+        function renderCartItems() {
+            const listEl = document.getElementById('cartItemsList');
+            if (cart.length === 0) {
+                listEl.innerHTML = `<div class="text-center py-12 text-slate-400 text-sm"><i class="fa-solid fa-cart-shopping text-3xl mb-2 block"></i>${currentLang === 'kk' ? 'Себет бос' : (currentLang === 'ru' ? 'Корзина пуста' : 'Cart is empty')}</div>`;
+                document.getElementById('cartSubtotal').innerText = '0 ₸';
+                document.getElementById('cartTotal').innerText = '0 ₸';
+                return;
+            }
+
+            let html = '';
+            let subtotal = 0;
+
+            cart.forEach(item => {
+                const itemTotal = item.price * item.quantity;
+                subtotal += itemTotal;
+
+                html += `
+                    <div class="py-3 flex items-center justify-between gap-4">
+                        <div class="space-y-1">
+                            <h5 class="text-xs font-bold text-slate-800">${item.name}</h5>
+                            <span class="text-[11px] text-slate-400">${item.price.toLocaleString()} ₸ × ${item.quantity}</span>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <span class="text-xs font-extrabold text-slate-900">${itemTotal.toLocaleString()} ₸</span>
+                            <div class="flex items-center border border-slate-200 rounded-lg overflow-hidden bg-slate-50">
+                                <button onclick="updateQuantity(${item.id}, -1)" class="px-2 py-1 text-slate-600 hover:bg-slate-200">-</button>
+                                <span class="px-2.5 text-xs font-bold">${item.quantity}</span>
+                                <button onclick="updateQuantity(${item.id}, 1)" class="px-2 py-1 text-slate-600 hover:bg-slate-200">+</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            listEl.innerHTML = html;
+            document.getElementById('cartSubtotal').innerText = subtotal.toLocaleString() + ' ₸';
+            document.getElementById('cartTotal').innerText = subtotal.toLocaleString() + ' ₸';
+        }
+
+        function updateQuantity(medId, delta) {
+            const item = cart.find(i => i.id === medId);
+            if (!item) return;
+            const med=medicinesDatabase.find(m=>m.id===medId); if(delta>0 && (!med||item.quantity>=med.stock)){showToast("Қоймадағы саннан артық емес", "warning");return;} item.quantity += delta;
+            if (item.quantity <= 0) {
+                cart = cart.filter(i => i.id !== medId);
+            }
+            updateCartBadge();
+            renderCartItems();
+        }
+
+        function checkoutOrder(){
+            if(!currentUser||isAdmin){showToast('Алдымен клиент ретінде тіркеліңіз','warning');return;}
+            if(!userPhone){showToast('WhatsApp нөмірі қажет: тіркеу формасын толтырыңыз','warning');return;}
+            if(!cart.length){showToast('Себет бос','warning');return;}
+            const addr=document.getElementById('deliveryAddress').value.trim();
+            if(deliveryType==='courier'&&!addr){showToast('Жеткізу мекенжайын енгізіңіз','warning');return;}
+            if(cart.some(i=>i.category==='antibiotics'||i.category==='cardio'||i.category==='respiratory')&&!document.getElementById('prescriptionFileInput').files[0]){showToast('Рецептке жататын дәрі үшін рецепт керек','warning');return;}
+            if(paymentMethod==='qr'&&!pharmacySettings.qr){showToast('Әкімші ресми Kaspi QR жүктемеген','warning');return;}
+            const receipt=document.getElementById('paymentReceipt').files[0];
+            if(paymentMethod==='qr'&&!receipt){showToast('Төлем чегін тіркеңіз','warning');return;}
+            if(receipt && receipt.size>1000000){showToast('Чек файлы 1 МБ дейін болсын','warning');return;}
+            for(const i of cart){const m=medicinesDatabase.find(x=>x.id===i.id);if(!m||m.stock<i.quantity||m.expiry<new Date().toISOString().slice(0,10)){showToast(i.name+' қоймада жеткіліксіз немесе мерзімі өткен','warning');return;}}
+            const finish=(receiptData)=>{
+                const ord={id:Date.now(),client:currentUser,phone:userPhone,items:cart.map(i=>({...i})),total:cart.reduce((a,i)=>a+i.price*i.quantity,0),deliveryType,paymentMethod,address:addr,receipt:receiptData||'',courier:'',status:'Жаңа тапсырыс',date:new Date().toLocaleString('kk-KZ')};
+                ordersDatabase.unshift(ord);cart.forEach(i=>{medicinesDatabase.find(x=>x.id===i.id).stock-=i.quantity});persistDemo();renderMedicines();renderAdminInventory();clientOrders=ordersDatabase.filter(o=>o.phone===userPhone);cart=[];updateCartBadge();closeCartModal();document.getElementById('paymentReceipt').value='';showToast('Тапсырыс браузерде тіркелді (демо)','success');
+                const msg=`Жаңа тапсырыс #${ord.id}\nКлиент: ${ord.client}\nWhatsApp: +${ord.phone}\nДәрілер: ${ord.items.map(i=>i.name+' x'+i.quantity).join(', ')}\nЖалпы: ${ord.total} ₸\nЖеткізу: ${ord.deliveryType==='courier'?ord.address:'Өзі алып кету'}\nТөлем: ${ord.paymentMethod}\nЧек: ${ord.receipt?'сайтта тіркелген (демо)':'жоқ'}`;
+                if(pharmacySettings.phone){if(confirm('Тапсырыс сақталды. Дәріхананың WhatsApp чатын дайын хабарламамен ашасыз ба? Хабарламаны өзіңіз жіберуіңіз керек.'))window.open(waLink(pharmacySettings.phone,msg),'_blank','noopener');}else showToast('WhatsApp нөмірі бапталмаған: админге хабарлама жіберілмеді','warning');
+            };
+            if(receipt){const r=new FileReader();r.onload=()=>finish(r.result);r.readAsDataURL(receipt);}else finish('');
+        }
+
+        function triggerWhatsAppSimulation(msgText) {
+            const modal = document.getElementById('whatsappSimModal');
+            document.getElementById('whatsappSimText').innerText = msgText;
+            modal.classList.remove('translate-y-32', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('translate-y-32', 'opacity-0');
+            }, 5500);
+        }
+
+        function openOrdersModal() {
+            clientOrders=ordersDatabase.filter(o=>o.phone===userPhone && !!userPhone);
+            const container = document.getElementById('clientOrdersListContainer');
+            if (clientOrders.length === 0) {
+                container.innerHTML = `<div class="text-center py-12 text-slate-400 text-sm"><i class="fa-solid fa-box-open text-3xl mb-2 block"></i>Әзірге тапсырыстарыңыз жоқ</div>`;
+            } else {
+                let html = '';
+                clientOrders.forEach(ord => {
+                    let statusBadgeClass = "bg-amber-50 text-amber-700 border-amber-200";
+                    if (ord.status === 'Жолға шықты') statusBadgeClass = "bg-blue-50 text-blue-700 border-blue-200";
+                    if (ord.status === 'Дайын (Алып кету)') statusBadgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+
+                    html += `
+                        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs font-bold text-slate-500">Тапсырыс #${ord.id} (${ord.date})</span>
+                                <span class="px-3 py-1 rounded-full text-xs font-bold border ${statusBadgeClass}">${ord.status}</span>
+                            </div>
+                            <div class="text-xs text-slate-600 space-y-1">
+                                <p><b>Жеткізу түрі:</b> ${ord.deliveryType === 'courier' ? 'Үйге жеткізу (Курьер)' : 'Дәріханадан өзі алып кету'}</p>
+                                <p><b>Мекенжай:</b> ${htmlSafe(ord.address||'Өзі алып кету')}</p><p><b>Курьер:</b> ${htmlSafe(ord.courier||'Тағайындалмаған')}</p><p><b>Төлем түрі:</b> ${htmlSafe(ord.paymentMethod.toUpperCase())}</p>
+                                <p><b>Дәрілер:</b> ${ord.items.map(i => i.name + ' (' + i.quantity + ' дана)').join(', ')}</p>
+                            </div>
+                            <div class="flex items-center justify-between pt-2 border-t border-slate-200/60">
+                                <span class="text-xs font-semibold text-slate-500">Жалпы сома:</span>
+                                <span class="text-sm font-extrabold text-medical-700">${ord.total.toLocaleString()} ₸</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            }
+            openModal('ordersModal');
+        }
+
+        // --- ADMIN PANEL FUNCTIONS ---
+        function switchAdminTab(tabName) {
+            document.getElementById('adminTabContentInventory').classList.add('hidden');
+            document.getElementById('adminTabContentOrders').classList.add('hidden');
+            document.getElementById('adminTabContentTracking').classList.add('hidden');
+            document.getElementById('adminTabContentDelivery').classList.add('hidden');
+            document.getElementById('adminTabContentAnalytics').classList.add('hidden');
+
+            document.getElementById('tabBtnInventory').className = "px-5 py-3 rounded-xl font-bold text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200";
+            document.getElementById('tabBtnOrders').className = "px-5 py-3 rounded-xl font-bold text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200";
+            document.getElementById('tabBtnDelivery').className = "px-5 py-3 rounded-xl font-bold text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 whitespace-nowrap";
+            document.getElementById('tabBtnTracking').className = "px-5 py-3 rounded-xl font-bold text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200";
+            document.getElementById('tabBtnAnalytics').className = "px-5 py-3 rounded-xl font-bold text-sm transition bg-white text-slate-600 hover:bg-slate-100 border border-slate-200";
+
+            if (tabName === 'inventory') {
+                document.getElementById('adminTabContentInventory').classList.remove('hidden');
+                document.getElementById('tabBtnInventory').className = "px-5 py-3 rounded-xl font-bold text-sm transition bg-brand-600 text-white shadow-md";
+                renderAdminInventory();
+            } else if (tabName === 'orders') {
+                document.getElementById('adminTabContentOrders').classList.remove('hidden');
+                document.getElementById('tabBtnOrders').className = "px-5 py-3 rounded-xl font-bold text-sm transition bg-brand-600 text-white shadow-md";
+                renderAdminOrders();
+            } else if (tabName === 'delivery') {
+                document.getElementById('adminTabContentDelivery').classList.remove('hidden');
+                document.getElementById('tabBtnDelivery').className = "px-5 py-3 rounded-xl font-bold text-sm bg-brand-600 text-white shadow-md whitespace-nowrap";
+                renderDeliveryManagement();
+            } else if (tabName === 'tracking') {
+                document.getElementById('adminTabContentTracking').classList.remove('hidden');
+                document.getElementById('tabBtnTracking').className = "px-5 py-3 rounded-xl font-bold text-sm transition bg-brand-600 text-white shadow-md";
+                setTimeout(() => { initAdminMap(); refreshCourierLocation(); if(adminMap) adminMap.resize(); }, 200);
+            } else if (tabName === 'analytics') {
+                document.getElementById('adminTabContentAnalytics').classList.remove('hidden');
+                document.getElementById('tabBtnAnalytics').className = "px-5 py-3 rounded-xl font-bold text-sm transition bg-brand-600 text-white shadow-md";
+                renderAdminAnalytics();
+            }
+        }
+
+        const LOW_STOCK_LIMIT = 5;
+
+        function refreshLowStockAlert() {
+            const box = document.getElementById('lowStockAlert');
+            if (!box) return;
+            const low = medicinesDatabase.filter(m => m.stock <= LOW_STOCK_LIMIT);
+            if (!low.length) {
+                box.className = 'bg-emerald-50 border border-emerald-200 rounded-2xl p-4 text-emerald-800';
+                box.textContent = 'Қоймада аз қалған дәрілер жоқ.';
+                return;
+            }
+            box.className = 'bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900';
+            box.replaceChildren();
+            const title = document.createElement('strong');
+            title.textContent = `Назар аударыңыз: ${low.length} дәрінің қоры аз (шек: ${LOW_STOCK_LIMIT} дана).`;
+            box.appendChild(title);
+            const list = document.createElement('div');
+            list.className = 'text-sm mt-2';
+            list.textContent = low.slice(0, 15).map(m => `${m.name}: ${m.stock} дана`).join(' · ');
+            box.appendChild(list);
+        }
+
+        function replenishMedicine(medId) {
+            const med = medicinesDatabase.find(m => m.id === medId);
+            const field = document.getElementById('restock-' + medId);
+            if (!med || !field) return;
+            const amount = Number(field.value);
+            if (!Number.isSafeInteger(amount) || amount <= 0 || amount > 100000) {
+                showToast('Қосылатын санды дұрыс енгізіңіз (1–100000)', 'warning');
+                return;
+            }
+            med.stock += amount;
+            persistDemo();
+            renderAdminInventory();
+            renderMedicines();
+            showToast(`${med.name}: қоймаға ${amount} дана қосылды. Қалдығы: ${med.stock}`, 'success');
+        }
+
+        function renderAdminInventory() {
+            const tbody = document.getElementById('adminInventoryTableBody');
+            let html = '';
+
+            medicinesDatabase.forEach(med => {
+                const isExpired = new Date(med.expiry) < new Date();
+                const catName = translations[currentLang].catNames[med.category] || med.category;
+
+                html += `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-4 font-bold text-slate-800">${med.name}</td>
+                        <td class="p-4 text-slate-600">${catName}</td>
+                        <td class="p-4 font-semibold text-slate-900">${med.price.toLocaleString()} ₸</td>
+                        <td class="p-4 text-slate-600">${med.stock} дана</td>
+                        <td class="p-4 text-slate-600">${med.expiry}</td>
+                        <td class="p-4">
+                            ${isExpired ? '<span class="px-2.5 py-1 bg-rose-100 text-rose-700 rounded-lg text-xs font-bold">Мерзімі өткен!</span>' : (med.stock === 0 ? '<span class="px-2.5 py-1 bg-rose-100 text-rose-700 rounded-lg text-xs font-bold">Таусылған!</span>' : med.stock <= LOW_STOCK_LIMIT ? '<span class="px-2.5 py-1 bg-amber-100 text-amber-700 rounded-lg text-xs font-bold">Аз қалды!</span>' : '<span class="px-2.5 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-bold">Жеткілікті</span>')}
+                        </td>
+                        <td class="p-4 text-right space-x-2">
+                            <div class="flex gap-2 justify-end items-center mb-2">
+                                <input id="restock-${med.id}" type="number" min="1" max="100000" step="1" placeholder="Саны" aria-label="Қосылатын дәрі саны" class="border rounded-lg w-20 px-2 py-1.5 text-xs">
+                                <button onclick="replenishMedicine(${med.id})" class="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold">+ Толықтыру</button>
+                            </div>
+                            <button onclick="removeMedicine(${med.id})" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-lg text-xs transition" title="Мерзімі өтуіне байланысты алып тастау">
+                                <i class="fa-solid fa-trash-can mr-1"></i> Өшіру
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+            refreshLowStockAlert();
+        }
+
+        function removeMedicine(medId) {
+            medicinesDatabase = medicinesDatabase.filter(m => m.id !== medId);
+            persistDemo();renderAdminInventory();renderMedicines();
+            showToast('Дәрі қоймадан сәтті өшірілді (минус шығын есептелді).', 'warning');
+        }
+
+        function handleAddNewMedicine(event){event.preventDefault();const name=document.getElementById('newMedName').value.trim(),category=document.getElementById('newMedCategory').value,price=Number(document.getElementById('newMedPrice').value),stock=Number(document.getElementById('newMedStock').value),expiry=document.getElementById('newMedExpiry').value;if(!name||price<=0||stock<0||!expiry){showToast('Өрістерді дұрыс толтырыңыз','warning');return;}if(expiry<new Date().toISOString().slice(0,10)){showToast('Жарамдылық мерзімі өткен','warning');return;}const image=document.getElementById('newMedPreview');medicinesDatabase.unshift({id:Math.max(0,...medicinesDatabase.map(m=>m.id))+1,name,category,price,stock,expiry,rating:'5.0',image:image.classList.contains('hidden')?'':image.src});persistDemo();closeModal('addMedicineModal');document.getElementById('addMedicineForm').reset();image.classList.add('hidden');renderAdminInventory();showToast('Жаңа дәрі мен суреті сақталды','success');}
+
+        const COURIERS_KEY = 'pharma_demo_couriers_v1';
+        let courierDatabase = [];
+        try { courierDatabase = JSON.parse(localStorage.getItem(COURIERS_KEY)||'null') || []; } catch(e) {}
+        if (!Array.isArray(courierDatabase)) courierDatabase=[];
+        if (!courierDatabase.length) courierDatabase=[{id:'c1',name:'Ербол',phone:''},{id:'c2',name:'Айдын',phone:''},{id:'c3',name:'Марат',phone:''}];
+        function saveCouriers(){try{localStorage.setItem(COURIERS_KEY,JSON.stringify(courierDatabase));}catch(e){showToast('Курьерлерді сақтау мүмкін болмады','warning');}}
+        function courierOptions(selected){return '<option value="">Курьер таңдаңыз</option>'+courierDatabase.map(c=>`<option value="${htmlSafe(c.name)}" ${selected===c.name?'selected':''}>${htmlSafe(c.name)}</option>`).join('');}
+        function addCourier(){
+            const name=document.getElementById('courierNewName').value.trim(),phone=document.getElementById('courierNewPhone').value.trim();
+            if(!name||courierDatabase.some(c=>c.name.toLowerCase()===name.toLowerCase())){showToast('Курьердің дұрыс және қайталанбайтын атын енгізіңіз','warning');return;}
+            courierDatabase.push({id:'c'+Date.now(),name,phone}); saveCouriers();
+            document.getElementById('courierNewName').value='';document.getElementById('courierNewPhone').value='';renderDeliveryManagement();showToast('Курьер қосылды','success');
+        }
+        function saveCourierCoordinates(id){
+            const c=courierDatabase.find(x=>x.id===id);if(!c)return;
+            const latString=document.getElementById('clat_'+id).value.trim(),lngString=document.getElementById('clng_'+id).value.trim();
+            if(!latString&&!lngString){delete c.lat;delete c.lng;}
+            else {const lat=Number(latString),lng=Number(lngString);if(!latString||!lngString||!Number.isFinite(lat)||!Number.isFinite(lng)||Math.abs(lat)>90||Math.abs(lng)>180){showToast('Ендік пен бойлықты дұрыс енгізіңіз','warning');return;}c.lat=lat;c.lng=lng;}
+            saveCouriers();renderAdminCourierMarkers();showToast('Координат сақталды (қолмен енгізілген демо)','success');
+        }
+        function renderDeliveryManagement(){
+            const panel=document.getElementById('deliveryOrdersPanel'),list=document.getElementById('courierManagerList');if(!panel||!list)return;
+            const shipments=ordersDatabase.filter(o=>o.deliveryType==='courier');
+            panel.innerHTML=shipments.length?shipments.map(o=>`<div class="p-4 bg-slate-50 border rounded-2xl space-y-3">
+                <div class="flex flex-wrap justify-between gap-2"><b>#${o.id} · ${htmlSafe(o.client)}</b><span class="text-xs px-2 py-1 bg-blue-100 rounded-lg">${htmlSafe(o.status)}</span></div>
+                <p class="text-sm"><b>Мекенжай:</b> ${htmlSafe(o.address||'Көрсетілмеген')}</p>
+                <p class="text-xs text-slate-600"><b>Дәрілер:</b> ${o.items.map(i=>htmlSafe(i.name)+' × '+i.quantity).join(', ')}</p>
+                <p class="text-sm font-semibold">${Number(o.total).toLocaleString('kk-KZ')} ₸</p>
+                <label class="text-sm block">Курьерді тағайындау<select onchange="assignCourier(${o.id},this.value)" class="mt-1 block w-full border rounded-lg p-2">${courierOptions(o.courier)}</select></label>
+                <div class="flex gap-2 flex-wrap"><button onclick="updateOrderStatus(${o.id},'Қабылданды')" class="px-3 py-2 bg-slate-200 rounded-lg text-xs font-bold">Қабылдау</button><button onclick="updateOrderStatus(${o.id},'Жолға шықты')" class="px-3 py-2 bg-blue-600 text-white rounded-lg text-xs font-bold">Жолға шықты</button><button onclick="updateOrderStatus(${o.id},'Жеткізілді')" class="px-3 py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold">Жеткізілді</button></div>
+            </div>`).join(''):'<p class="text-slate-500 text-sm">Жеткізуге тапсырыс әлі түскен жоқ. Клиент «Үйге жеткізу» таңдағаннан кейін осында шығады.</p>';
+            list.innerHTML=courierDatabase.map(c=>`<div class="rounded-xl border p-3"><div class="flex flex-wrap gap-2 justify-between"><b>${htmlSafe(c.name)}</b><span class="text-xs text-slate-500">${htmlSafe(c.phone||'Телефон жоқ')}</span></div>
+                <div class="flex flex-wrap gap-2 mt-2 items-end"><label class="text-xs">Ендік (latitude)<input id="clat_${c.id}" type="number" step="any" value="${c.lat??''}" placeholder="43.2389" class="block border rounded-lg px-2 py-2 w-32"></label><label class="text-xs">Бойлық (longitude)<input id="clng_${c.id}" type="number" step="any" value="${c.lng??''}" placeholder="76.8897" class="block border rounded-lg px-2 py-2 w-32"></label><button onclick="saveCourierCoordinates('${c.id}')" class="bg-slate-900 text-white rounded-lg px-3 py-2 text-xs">Орынды сақтау</button></div><p class="text-xs text-amber-700 mt-1">Бұл GPS емес, әкімші қолмен енгізген нүкте.</p></div>`).join('');
+        }
+
+        function renderAdminOrders() {
+            const tbody = document.getElementById('adminOrdersTableBody');
+            if (ordersDatabase.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400">Әзірге түскен тапсырыстар жоқ</td></tr>`;
+                return;
+            }
+
+            let html = '';
+            ordersDatabase.forEach(ord => {
+                html += `
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="p-4 font-bold text-slate-800">#${ord.id}</td>
+                        <td class="p-4 font-medium text-slate-700">${htmlSafe(ord.client)}<br><span class="text-xs">+${htmlSafe(ord.phone||"-")}</span><br><span class="text-xs">${htmlSafe(ord.address||"")}</span></td>
+                        <td class="p-4 text-slate-600">${ord.items.map(i => htmlSafe(i.name) + ' (' + i.quantity + ')').join(', ')} ${ord.receipt ? `<button onclick="viewReceipt(${ord.id})" class="block text-blue-600 underline text-xs">Чекті көру</button>` : ''}</td>
+                        <td class="p-4 font-extrabold text-slate-900">${ord.total.toLocaleString()} ₸</td>
+                        <td class="p-4 text-slate-600">${ord.deliveryType === 'courier' ? 'Курьер' : 'Өзі алып кету'}</td>
+                        <td class="p-4">
+                            <span class="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold">${ord.status}</span>
+                        </td>
+                        <td class="p-4 text-right space-x-2">
+                            <button onclick="updateOrderStatus(${ord.id},'Қабылданды')" class="px-2 py-1 bg-slate-100 rounded-lg text-xs">Қабылдау</button>
+                            ${ord.deliveryType === 'courier' ? `<select onchange="assignCourier(${ord.id},this.value)" class="border rounded-lg px-2 py-1 text-xs"><option value="">Курьер таңдаңыз</option>${courierDatabase.map(n=>`<option value="${htmlSafe(n.name)}" ${ord.courier===n.name?'selected':''}>${htmlSafe(n.name)}</option>`).join('')}</select>` : ''}
+                            ${ord.deliveryType === 'courier' ? `
+                                <button onclick="updateOrderStatus(${ord.id}, 'Жолға шықты')" class="px-3 py-1.5 bg-brand-50 hover:bg-brand-100 text-brand-600 font-bold rounded-lg text-xs transition">Жолға шықты</button>
+                            ` : `
+                                <button onclick="updateOrderStatus(${ord.id}, 'Дайын (Алып кету)')" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 font-bold rounded-lg text-xs transition">Дайын (Алып кету)</button>
+                            `}
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        function assignCourier(orderId,name){const ord=ordersDatabase.find(o=>o.id===orderId);if(!ord)return;ord.courier=name;persistDemo();renderAdminOrders();renderDeliveryManagement();renderAdminCourierMarkers();showToast(name?'Курьер тағайындалды':'Курьер алынды','success');}
+        function viewReceipt(orderId){const ord=ordersDatabase.find(o=>o.id===orderId);if(!ord?.receipt)return;const w=window.open('','_blank');if(!w){showToast('Қалқымалы терезеге рұқсат беріңіз','warning');return;}if(ord.receipt.startsWith('data:application/pdf'))w.document.write(`<iframe src="${ord.receipt}" style="width:100%;height:98vh"></iframe>`);else w.document.write(`<img src="${ord.receipt}" style="max-width:100%">`);}
+        function updateOrderStatus(orderId,newStatus){const ord=ordersDatabase.find(o=>o.id===orderId);if(!ord)return;if(newStatus==='Жолға шықты'&&!ord.courier){showToast('Алдымен курьерді тағайындаңыз','warning');return;}ord.status=newStatus;persistDemo();renderAdminOrders();renderDeliveryManagement();renderAdminCourierMarkers();showToast('Тапсырыс күйі: '+newStatus,'success');if(ord.phone){let msg=`Сәлеметсіз бе, ${ord.client}! #${ord.id} тапсырысыңыз қабылданды.`;if(newStatus==='Жолға шықты')msg=`#${ord.id} тапсырысыңыз жолға шықты. Курьер: ${ord.courier}.`;if(newStatus==='Дайын (Алып кету)')msg=`#${ord.id} тапсырысыңыз дайын. ${pharmacySettings.address||'Дәріхана мекенжайын админнен нақтылаңыз'} мекенжайынан алып кете аласыз.`;if(confirm('Клиентке WhatsApp-та дайын хабарламаны ашасыз ба? Жіберуді өзіңіз растауыңыз керек.'))window.open(waLink(ord.phone,msg),'_blank','noopener');}}
+
+        function renderAdminAnalytics() {
+            const container = document.getElementById('categorySalesStats');
+            let html = '';
+            categoryKeys.slice(0, 5).forEach((cat, idx) => {
+                const catName = translations[currentLang].catNames[cat] || cat;
+                const percents = [28, 22, 18, 15, 17][idx];
+                html += `
+                    <div>
+                        <div class="flex justify-between text-xs font-semibold text-slate-700 mb-1">
+                            <span>${catName}</span>
+                            <span>${percents}%</span>
+                        </div>
+                        <div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                            <div class="bg-medical-600 h-2.5 rounded-full" style="width: ${percents}%"></div>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        // Client map uses the same free OpenFreeMap/MapLibre as the server-backed admin map.
+        // Client orders remain browser-local demo data; never expose admin GPS to clients.
+        let clientTrackingMap = null;
+        let clientCourierMarker = null;
+        const demoMapCenter = [71.3667, 42.9000]; // Taraz, map viewport only
+        // Django GPS API (server-side staff access); no demo courier coordinates are used here.
+        const LIVE_COURIERS_URL = '/api/admin/couriers/locations/';
+        let adminGpsMap = null;
+        let adminGpsMarkers = new Map();
+        let adminGpsBusy = false;
+        let adminGpsFocused = false;
+        let adminGpsInterval = null;
+
+        function adminTrackingVisible() {
+            const tab = document.getElementById('adminTabContentTracking');
+            return tab && !tab.classList.contains('hidden') &&
+                !document.getElementById('adminDashboardView').classList.contains('hidden');
+        }
+
+        function initAdminMap() {
+            if (adminGpsMap) { adminGpsMap.resize(); return; }
+            const status = document.getElementById('adminGpsStatus');
+            if (!window.maplibregl) {
+                status.textContent = 'MapLibre кітапханасы жүктелмеді. Интернетті тексеріңіз.';
+                return;
+            }
+            try {
+                adminGpsMap = new maplibregl.Map({
+                    container: 'adminMap',
+                    style: 'https://tiles.openfreemap.org/styles/liberty',
+                    center: [71.3667, 42.9000],
+                    zoom: 12
+                });
+                adminGpsMap.addControl(new maplibregl.NavigationControl(), 'top-left');
+                adminGpsMap.on('error', e => {
+                    console.error('OpenFreeMap error:', e.error);
+                    status.textContent = 'Карта қабаты жүктелмеді. GPS тізімі төменде қолжетімді болуы мүмкін.';
+                });
+            } catch (error) {
+                console.error(error);
+                status.textContent = 'Картаны іске қосу қатесі: ' + error.message;
+            }
+        }
+
+        function renderAdminCourierMarkers(couriers = []) {
+            if (!adminGpsMap) return;
+            const visible = new Set();
+            for (const c of couriers) {
+                const lat = Number(c.latitude), lng = Number(c.longitude);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng) ||
+                    Math.abs(lat) > 90 || Math.abs(lng) > 180) continue;
+                const id = String(c.order_id);
+                visible.add(id);
+                const point = [lng, lat];
+                const label = `${c.courier} | Тапсырыс №${c.order_id} | ${c.is_fresh ? 'GPS жаңа' : 'GPS ескірген'}`;
+                let marker = adminGpsMarkers.get(id);
+                if (!marker) {
+                    marker = new maplibregl.Marker({ color: c.is_fresh ? '#059669' : '#d97706' })
+                        .setLngLat(point)
+                        .setPopup(new maplibregl.Popup().setText(label))
+                        .addTo(adminGpsMap);
+                    adminGpsMarkers.set(id, marker);
+                } else {
+                    marker.setLngLat(point);
+                    marker.setPopup(new maplibregl.Popup().setText(label));
+                }
+                marker.getElement().style.opacity = c.is_fresh ? '1' : '.55';
+                if (!adminGpsFocused) {
+                    adminGpsMap.flyTo({center: point, zoom: 14});
+                    adminGpsFocused = true;
+                }
+            }
+            for (const [id, marker] of adminGpsMarkers.entries()) {
+                if (!visible.has(id)) { marker.remove(); adminGpsMarkers.delete(id); }
+            }
+        }
+
+        function renderAdminGpsList(couriers) {
+            const list = document.getElementById('adminGpsList');
+            list.replaceChildren();
+            if (!couriers.length) {
+                list.textContent = 'GPS координаттары бар белсенді жеткізу тапсырыстары табылмады.';
+                return;
+            }
+            for (const c of couriers) {
+                const item = document.createElement('div');
+                item.className = 'p-4 bg-slate-50 rounded-2xl border border-slate-200 text-sm';
+                const name = document.createElement('p');
+                name.className = 'font-bold text-slate-900';
+                name.textContent = `${c.courier} — тапсырыс №${c.order_id}`;
+                const detail = document.createElement('p');
+                detail.className = 'text-slate-600 mt-1';
+                detail.textContent = `${c.status_display || c.status} | ${Number(c.latitude).toFixed(5)}, ${Number(c.longitude).toFixed(5)}`;
+                const update = document.createElement('p');
+                update.className = 'text-xs mt-1 ' + (c.is_fresh ? 'text-emerald-700' : 'text-amber-700');
+                update.textContent = `${c.is_fresh ? 'GPS жаңа' : 'GPS ескірген'} · ${new Date(c.updated_at).toLocaleString('kk-KZ')}`;
+                item.append(name, detail, update);
+                list.appendChild(item);
+            }
+        }
+
+        async function refreshCourierLocation() {
+            if (!adminTrackingVisible() || adminGpsBusy) return;
+            initAdminMap();
+            adminGpsBusy = true;
+            const status = document.getElementById('adminGpsStatus');
+            try {
+                const response = await fetch(LIVE_COURIERS_URL, {
+                    credentials: 'same-origin', cache: 'no-store',
+                    headers: { Accept: 'application/json' }
+                });
+                const type = response.headers.get('content-type') || '';
+                if (!response.ok || !type.includes('application/json')) {
+                    if (response.status === 403 || response.status === 401 || !type.includes('application/json')) {
+                        throw new Error('Django админ аккаунтымен кіру қажет. /admin/login/ бетін ашыңыз.');
+                    }
+                    throw new Error('GPS API қатесі: HTTP ' + response.status);
+                }
+                const data = await response.json();
+                if (data.success !== true || !Array.isArray(data.couriers)) throw new Error('API жауабы дұрыс емес.');
+                renderAdminGpsList(data.couriers);
+                renderAdminCourierMarkers(data.couriers);
+                status.textContent = `${data.couriers.length} жеткізу · Соңғы тексеру: ${new Date().toLocaleTimeString('kk-KZ')}`;
+            } catch (error) {
+                status.replaceChildren();
+                const message = document.createElement('span');
+                message.textContent = error.message + ' ';
+                status.appendChild(message);
+                const link = document.createElement('a');
+                link.href = '/admin/login/?next=/';
+                link.target = '_blank';
+                link.rel = 'noopener';
+                link.textContent = 'Django админге кіру';
+                link.className = 'text-blue-600 underline';
+                status.appendChild(link);
+                console.error('GPS tracking:', error);
+            } finally { adminGpsBusy = false; }
+        }
+
+        adminGpsInterval = setInterval(() => {
+            if (!document.hidden && adminTrackingVisible()) refreshCourierLocation();
+        }, 5000);
+
+        function openTrackingModal() {
+            if (!currentUser || isAdmin) {
+                showToast('Клиент ретінде кіріңіз', 'warning');
+                return;
+            }
+            const ord = ordersDatabase
+                .filter(o => o.phone === userPhone && o.deliveryType === 'courier')
+                .sort((a, b) => b.id - a.id)[0];
+            if (!ord) {
+                showToast('Жеткізілетін тапсырыс табылмады', 'warning');
+                return;
+            }
+            const c = courierDatabase.find(x => x.name === ord.courier);
+            const hasDemoPosition = c && Number.isFinite(Number(c.lat)) && Number.isFinite(Number(c.lng)) &&
+                Math.abs(Number(c.lat)) <= 90 && Math.abs(Number(c.lng)) <= 180;
+            document.getElementById('trackingOrderDetails').textContent =
+                `Тапсырыс #${ord.id} | Күйі: ${ord.status} | Курьер: ${ord.courier || 'тағайындалмаған'} | Мекенжай: ${ord.address}. ` +
+                (hasDemoPosition ? 'Маркер: админ қолмен енгізген демонстрациялық координат.' : 'Демонстрациялық курьер координаттары жоқ.');
+            openModal('trackingModal');
+            setTimeout(() => {
+                const element = document.getElementById('clientMap');
+                if (!window.maplibregl) {
+                    element.textContent = 'MapLibre кітапханасы жүктелмеді. Интернетті тексеріңіз.';
+                    return;
+                }
+                try {
+                    if (!clientTrackingMap) {
+                        clientTrackingMap = new maplibregl.Map({
+                            container: 'clientMap',
+                            style: 'https://tiles.openfreemap.org/styles/liberty',
+                            center: demoMapCenter,
+                            zoom: 12
+                        });
+                        clientTrackingMap.addControl(new maplibregl.NavigationControl(), 'top-left');
+                        clientTrackingMap.on('error', event => console.error('Клиент картасы:', event.error));
+                    }
+                    clientTrackingMap.resize();
+                    if (clientCourierMarker) {
+                        clientCourierMarker.remove();
+                        clientCourierMarker = null;
+                    }
+                    if (hasDemoPosition) {
+                        const position = [Number(c.lng), Number(c.lat)];
+                        clientCourierMarker = new maplibregl.Marker({color:'#d97706'})
+                            .setLngLat(position)
+                            .setPopup(new maplibregl.Popup().setText('Демо курьер: ' + c.name))
+                            .addTo(clientTrackingMap);
+                        clientTrackingMap.flyTo({center: position, zoom: 14});
+                    } else {
+                        clientTrackingMap.jumpTo({center: demoMapCenter, zoom: 12});
+                    }
+                } catch (error) {
+                    console.error('Клиент картасын құру қатесі:', error);
+                    element.textContent = 'Карта жүктелмеді: ' + error.message;
+                }
+            }, 250);
+        }
+
+        // --- AI CHATBOT ASSISTANT LOGIC ---
+        function toggleChatbot() {
+            const win = document.getElementById('chatbotWindow');
+            win.classList.toggle('hidden');
+        }
+
+        function sendChatMessage(){const input=document.getElementById('chatInput'),text=input.value.trim();if(!text)return;const area=document.getElementById('chatMessages');const user=document.createElement('div');user.className='bg-medical-50 p-3 rounded-xl ml-auto max-w-[85%] text-xs';user.textContent=text;area.appendChild(user);input.value='';const lower=text.toLocaleLowerCase();const ru=/[ыэъё]/i.test(text)||/как|можно|принимать|состав|противопоказ|сколько|есть ли|замена|лекарство/i.test(text);const en=/\b(how|what|medicine|take|ingredients|side effects|alternative|stock|dose|use)\b/i.test(text)&&!/[а-яәіңғүұқөһ]/i.test(text);const lang=en?'en':ru?'ru':'kk';const med=medicinesDatabase.find(m=>lower.includes(m.name.toLocaleLowerCase())||lower.includes(m.name.split(' ')[0].toLocaleLowerCase()));let reply='';if(med){const avail=med.stock>0&&med.expiry>=new Date().toISOString().slice(0,10);const candidates=medicinesDatabase.filter(m=>m.category===med.category&&m.stock>0&&m.expiry>=new Date().toISOString().slice(0,10)&&m.id!==med.id).slice(0,3);const safe={kk:`${med.name}. Санаты: ${translations.kk.catNames[med.category]}. Қоймада: ${avail?med.stock+' дана':'жоқ'}. Бағасы: ${med.price} ₸. Құрамы, қолдану тәсілі, қарсы көрсетілімдері және жас шектеуі туралы расталған нұсқаулық бұл демода жоқ. Дәрінің ресми нұсқаулығын немесе фармацевт кеңесін пайдаланыңыз.`,ru:`${med.name}. Категория: ${translations.ru.catNames[med.category]}. Наличие: ${avail?med.stock+' шт.':'нет'}. Цена: ${med.price} ₸. В демоверсии нет проверенной инструкции по составу, показаниям и противопоказаниям. Уточните по официальной инструкции или у фармацевта.`,en:`${med.name}. Category: ${translations.en.catNames[med.category]}. Stock: ${avail?med.stock:'out of stock'}. Price: ${med.price} KZT. Verified ingredients, indications and contraindications are not available in this demo. Consult the official leaflet or a pharmacist.`};reply=safe[lang];if(!avail&&candidates.length){reply+=' '+({kk:'Осы санатта бар дәрілер (емдік балама екені расталмаған): ',ru:'Другие товары в этой категории (не подтверждённые терапевтические аналоги): ',en:'Other products in this category (not verified therapeutic substitutes): '}[lang])+candidates.map(m=>m.name).join(', ');}}else{reply=({kk:'Дәрі атауын толық жазыңыз. Қоймадағы санын және бағасын қарай аламын. Құрамы, қолданылуы мен қарсы көрсетілімдері туралы нақты жауап үшін тексерілген дәрілік нұсқаулық базасы қажет.',ru:'Укажите полное название лекарства. Я могу показать наличие и цену. Для точных сведений о составе, применении и противопоказаниях нужна проверенная база инструкций.',en:'Please provide the full medicine name. I can check stock and price. Verified drug-label data is needed to answer questions about ingredients, indications, and contraindications.'})[lang];}const answer=document.createElement('div');answer.className='bg-white p-3 rounded-xl border max-w-[90%] text-xs';answer.textContent=reply;area.appendChild(answer);area.scrollTop=area.scrollHeight;}
+
+        // --- TOAST NOTIFICATION HELPER ---
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toastNotification');
+            const msgEl = document.getElementById('toastMessage');
+            const iconEl = document.getElementById('toastIcon');
+
+            msgEl.innerText = message;
+            if (type === 'success') {
+                iconEl.className = 'fa-solid fa-circle-check text-medical-400 text-lg';
+            } else if (type === 'warning') {
+                iconEl.className = 'fa-solid fa-triangle-exclamation text-amber-400 text-lg';
+            } else {
+                iconEl.className = 'fa-solid fa-circle-info text-brand-400 text-lg';
+            }
+
+            toast.classList.remove('translate-y-24', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-24', 'opacity-0');
+            }, 3500);
+        }
+
+        window.onload = function() {
+            changeLanguage('kk');updateContactLinks();
+            document.getElementById('adminWhatsappPhone').value=pharmacySettings.phone||'';
+            document.getElementById('adminPharmacyAddress').value=pharmacySettings.address||'';
+            try { const session=JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null'); if(session && session.name){currentUser=session.name;isAdmin=!!session.admin;userPhone=session.phone||'';updateUIAfterAuth();} } catch(e) {}
+            setDeliveryType(deliveryType);renderPaymentQr();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,408 @@
+
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
+
+    <title>PharmaCare Pro | GPS бақылау</title>
+
+    <link
+        href="https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.css"
+        rel="stylesheet"
+    >
+
+    <script src="https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.js"></script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: #f1f5f9;
+            font-family: Arial, sans-serif;
+            color: #0f172a;
+        }
+
+        header {
+            background: white;
+            padding: 20px 5%;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        header h1 {
+            color: #047857;
+            margin: 0 0 7px;
+        }
+
+        header p {
+            color: #64748b;
+            margin: 0;
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 28px auto;
+            padding: 0 16px;
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .heading {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .refresh {
+            padding: 11px 18px;
+            background: #059669;
+            color: white;
+            border: 0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        #adminMap {
+            width: 100%;
+            height: 480px;
+            border-radius: 14px;
+            background: #e2e8f0;
+        }
+
+        #status {
+            font-size: 14px;
+            color: #64748b;
+            margin-top: 15px;
+        }
+
+        .courier-card {
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 16px;
+            margin-top: 12px;
+        }
+
+        .courier-card h3 {
+            margin: 0 0 10px;
+        }
+
+        .courier-card p {
+            margin: 6px 0;
+            font-size: 14px;
+        }
+
+        .online {
+            color: #047857;
+            font-weight: bold;
+        }
+
+        .offline {
+            color: #b45309;
+            font-weight: bold;
+        }
+
+        @media (max-width: 600px) {
+            #adminMap {
+                height: 350px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<header>
+    <h1>PharmaCare Pro</h1>
+    <p>Админ панелі — курьерлерді GPS бақылау</p>
+</header>
+
+<main>
+    <section class="panel">
+        <div class="heading">
+            <div>
+                <h2>Курьерлер картасы</h2>
+                <p>
+                    GPS деректері әр 5 секунд сайын жаңартылады.
+                </p>
+            </div>
+
+            <button class="refresh" onclick="loadCouriers()">
+                Жаңарту
+            </button>
+        </div>
+
+        <div id="adminMap"></div>
+
+        <p id="status" role="status">
+            GPS деректері жүктелуде...
+        </p>
+    </section>
+
+    <section class="panel">
+        <h2>Белсенді жеткізу тапсырыстары</h2>
+        <div id="courierList">
+            Деректер жүктелуде...
+        </div>
+    </section>
+</main>
+
+<script>
+    let map = null;
+    let mapReady = false;
+    let initialFocusDone = false;
+    let requestInProgress = false;
+
+    const markers = new Map();
+
+    const API_URL = "/api/admin/couriers/locations/";
+
+    const statusElement = document.getElementById("status");
+    const courierList = document.getElementById("courierList");
+
+    function initMap() {
+        if (!window.maplibregl) {
+            statusElement.textContent =
+                "MapLibre кітапханасы жүктелмеді.";
+            return;
+        }
+
+        map = new maplibregl.Map({
+            container: "adminMap",
+            style: "https://tiles.openfreemap.org/styles/liberty",
+            center: [71.3667, 42.9000],
+            zoom: 12
+        });
+
+        map.addControl(
+            new maplibregl.NavigationControl(),
+            "top-left"
+        );
+
+        map.on("load", () => {
+            mapReady = true;
+        });
+
+        map.on("error", event => {
+            console.error("Карта қатесі:", event.error);
+        });
+    }
+
+    function addLine(container, label, value) {
+        const p = document.createElement("p");
+        const strong = document.createElement("strong");
+
+        strong.textContent = label + ": ";
+        p.appendChild(strong);
+        p.appendChild(document.createTextNode(String(value)));
+
+        container.appendChild(p);
+    }
+
+    function renderCourierList(couriers) {
+        courierList.replaceChildren();
+
+        if (couriers.length === 0) {
+            courierList.textContent =
+                "GPS деректері бар белсенді жеткізу табылмады.";
+            return;
+        }
+
+        couriers.forEach(courier => {
+            const card = document.createElement("div");
+            card.className = "courier-card";
+
+            const name = document.createElement("h3");
+            name.textContent = courier.courier;
+            card.appendChild(name);
+
+            addLine(
+                card,
+                "Тапсырыс",
+                "№" + courier.order_id
+            );
+
+            addLine(
+                card,
+                "Телефон",
+                courier.courier_phone
+            );
+
+            addLine(
+                card,
+                "Мәртебесі",
+                courier.status_display
+            );
+
+            addLine(
+                card,
+                "Координаттар",
+                courier.latitude + ", " + courier.longitude
+            );
+
+            addLine(
+                card,
+                "Соңғы жаңарту",
+                new Date(courier.updated_at).toLocaleString()
+            );
+
+            const gpsState = document.createElement("p");
+            gpsState.className = courier.is_fresh
+                ? "online"
+                : "offline";
+
+            gpsState.textContent = courier.is_fresh
+                ? "GPS деректері жаңа"
+                : "GPS деректері ескірген";
+
+            card.appendChild(gpsState);
+            courierList.appendChild(card);
+        });
+    }
+
+    function updateMarkers(couriers) {
+        if (!map) return;
+
+        const activeIds = new Set();
+
+        couriers.forEach(courier => {
+            const id = String(courier.order_id);
+
+            const latitude = Number(courier.latitude);
+            const longitude = Number(courier.longitude);
+
+            if (
+                !Number.isFinite(latitude) ||
+                !Number.isFinite(longitude)
+            ) {
+                return;
+            }
+
+            activeIds.add(id);
+
+            const coordinates = [longitude, latitude];
+
+            let marker = markers.get(id);
+
+            if (!marker) {
+                marker = new maplibregl.Marker({
+                    color: courier.is_fresh
+                        ? "#059669"
+                        : "#d97706"
+                })
+                .setLngLat(coordinates)
+                .setPopup(
+                    new maplibregl.Popup().setText(
+                        courier.courier +
+                        " | Тапсырыс №" +
+                        courier.order_id
+                    )
+                )
+                .addTo(map);
+
+                markers.set(id, marker);
+            } else {
+                marker.setLngLat(coordinates);
+                marker.getElement().style.opacity =
+                    courier.is_fresh ? "1" : "0.55";
+            }
+
+            marker.getElement().style.opacity =
+                courier.is_fresh ? "1" : "0.55";
+        });
+
+        for (const [id, marker] of markers) {
+            if (!activeIds.has(id)) {
+                marker.remove();
+                markers.delete(id);
+            }
+        }
+
+        if (!initialFocusDone && couriers.length > 0) {
+            const first = couriers[0];
+
+            map.flyTo({
+                center: [
+                    Number(first.longitude),
+                    Number(first.latitude)
+                ],
+                zoom: 14
+            });
+
+            initialFocusDone = true;
+        }
+    }
+
+    async function loadCouriers() {
+        if (requestInProgress) return;
+
+        requestInProgress = true;
+
+        try {
+            const response = await fetch(API_URL, {
+                credentials: "same-origin",
+                cache: "no-store"
+            });
+
+            if (!response.ok) {
+                if (response.status === 403) {
+                    throw new Error(
+                        "Админ рұқсаты жоқ."
+                    );
+                }
+
+                throw new Error(
+                    "Сервер қатесі: " + response.status
+                );
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error("GPS деректерін алу мүмкін емес.");
+            }
+
+            const couriers = data.couriers || [];
+
+            renderCourierList(couriers);
+            updateMarkers(couriers);
+
+            statusElement.textContent =
+                "Курьерлер саны: " + couriers.length +
+                " | Соңғы тексеру: " +
+                new Date().toLocaleTimeString();
+
+        } catch (error) {
+            statusElement.textContent =
+                "Қате: " + error.message;
+
+            console.error(error);
+        } finally {
+            requestInProgress = false;
+        }
+    }
+
+    initMap();
+    loadCouriers();
+
+    setInterval(() => {
+        if (!document.hidden) {
+            loadCouriers();
+        }
+    }, 5000);
+</script>
+
+</body>
+</html>

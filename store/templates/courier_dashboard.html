@@ -1,0 +1,627 @@
+
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>PharmaCare Pro | Курьер кабинеті</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- MapLibre + OpenFreeMap (Leaflet қажет емес) -->
+   
+<link  rel="stylesheet"
+    href="https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.css"
+    
+>
+
+<script src="https://unpkg.com/maplibre-gl@5.8.0/dist/maplibre-gl.js"></script>
+
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        #courierMap {
+            height: 350px;
+            width: 100%;
+            border-radius: 18px;
+            z-index: 1;
+        }
+
+        .gps-pulse {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(16,185,129,.5);
+            }
+
+            70% {
+                box-shadow: 0 0 0 12px rgba(16,185,129,0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(16,185,129,0);
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 min-h-screen text-slate-800">
+
+    <!-- HEADER -->
+    <header class="bg-white border-b border-slate-200 shadow-sm">
+        <div class="max-w-6xl mx-auto px-5 py-5
+                    flex justify-between items-center gap-4">
+
+            <div>
+                <h1 class="text-xl font-extrabold text-emerald-700">
+                    PharmaCare Pro
+                </h1>
+
+                <p class="text-xs text-slate-500">
+                    Курьердің жеке кабинеті
+                </p>
+            </div>
+
+            <form method="POST"
+                  action="{% url 'courier_logout' %}">
+                {% csrf_token %}
+
+                <button type="submit"
+                        class="bg-red-50 hover:bg-red-100
+                               text-red-600 px-4 py-2
+                               rounded-xl text-sm font-bold">
+                    Шығу
+                </button>
+            </form>
+
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-5 py-8 space-y-8">
+
+        <!-- КУРЬЕР ПРОФИЛІ -->
+        <section class="bg-gradient-to-r from-emerald-700
+                        to-emerald-500 text-white
+                        rounded-3xl p-7 shadow-lg">
+
+            <p class="text-emerald-100 text-sm mb-2">
+                Курьер кабинеті
+            </p>
+
+            <h2 class="text-3xl font-extrabold mb-3">
+                Қош келдіңіз, {{ courier.name }}!
+            </h2>
+
+            <p class="text-sm text-emerald-50">
+                Байланыс нөмірі: {{ courier.phone }}
+            </p>
+
+            <div class="mt-6 inline-block bg-white/20
+                        rounded-xl px-4 py-3">
+
+                <p class="text-xs text-emerald-100">
+                    Белсенді тапсырыстар
+                </p>
+
+                <p class="text-2xl font-extrabold">
+                    {{ orders_count }}
+                </p>
+
+            </div>
+        </section>
+
+        <!-- GPS БАҚЫЛАУ ПАНЕЛІ -->
+        <section class="bg-white border border-slate-200
+                        rounded-3xl p-6 shadow-sm space-y-5">
+
+            <div class="flex flex-wrap justify-between
+                        items-center gap-4">
+
+                <div>
+                    <h2 class="text-xl font-bold text-slate-900">
+                        GPS бақылау орталығы
+                    </h2>
+
+                    <p class="text-sm text-slate-500 mt-1">
+                        Орналасқан жеріңізді жеткізу кезінде
+                        серверге жіберіңіз.
+                    </p>
+                </div>
+
+                <div id="gpsBadge"
+                     class="flex items-center gap-2
+                            bg-slate-100 text-slate-600
+                            px-4 py-2 rounded-full text-xs font-bold">
+
+                    <span id="gpsIndicator"
+                          class="w-2.5 h-2.5 rounded-full bg-slate-400">
+                    </span>
+
+                    <span id="gpsBadgeText">
+                        GPS өшірулі
+                    </span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+                <div class="bg-slate-50 p-4 rounded-2xl">
+                    <p class="text-xs text-slate-400 mb-2">
+                        Ендік (Latitude)
+                    </p>
+
+                    <p id="latitudeValue"
+                       class="text-sm font-bold text-slate-800">
+                        —
+                    </p>
+                </div>
+
+                <div class="bg-slate-50 p-4 rounded-2xl">
+                    <p class="text-xs text-slate-400 mb-2">
+                        Бойлық (Longitude)
+                    </p>
+
+                    <p id="longitudeValue"
+                       class="text-sm font-bold text-slate-800">
+                        —
+                    </p>
+                </div>
+
+                <div class="bg-slate-50 p-4 rounded-2xl">
+                    <p class="text-xs text-slate-400 mb-2">
+                        Соңғы жаңарту
+                    </p>
+
+                    <p id="lastUpdateValue"
+                       class="text-sm font-bold text-slate-800">
+                        —
+                    </p>
+                </div>
+
+            </div>
+
+            <div id="courierMap"></div>
+
+            <p id="globalGpsStatus"
+               role="status"
+               aria-live="polite"
+               class="text-sm text-slate-500">
+                GPS бақылауды бастау үшін төмендегі
+                тапсырысты таңдаңыз.
+            </p>
+
+            <p class="text-xs text-amber-700
+                      bg-amber-50 border border-amber-100
+                      p-3 rounded-xl">
+                GPS тек сіз рұқсат берген кезде қосылады.
+                Браузер жабылса немесе телефон фондық режимге
+                өтсе, орналасқан жерді жіберу тоқтауы мүмкін.
+            </p>
+
+        </section>
+
+        <!-- ТАПСЫРЫСТАР -->
+        <section>
+            <h2 class="text-2xl font-bold mb-5">
+                Менің жеткізу тапсырыстарым
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                {% for order in orders %}
+
+                <article class="bg-white rounded-3xl
+                                border border-slate-200
+                                shadow-sm p-6 space-y-4">
+
+                    <div class="flex items-center
+                                justify-between gap-3">
+
+                        <h3 class="text-lg font-bold">
+                            Тапсырыс №{{ order.id }}
+                        </h3>
+
+                        <span class="text-xs font-bold
+                                     px-3 py-1.5
+                                     bg-emerald-50 text-emerald-700
+                                     rounded-full">
+                            {{ order.get_status_display }}
+                        </span>
+                    </div>
+
+                    <div class="border-t border-slate-100
+                                pt-4 space-y-3 text-sm">
+
+                        <div>
+                            <p class="text-xs text-slate-400">
+                                Клиент
+                            </p>
+
+                            <p class="font-semibold">
+                                {{ order.customer.get_full_name|default:order.customer.username }}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p class="text-xs text-slate-400">
+                                Телефон
+                            </p>
+
+                            <p class="font-semibold">
+                                {{ order.phone }}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p class="text-xs text-slate-400">
+                                Жеткізу мекенжайы
+                            </p>
+
+                            <p class="font-semibold">
+                                {{ order.address }}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p class="text-xs text-slate-400">
+                                Тапсырыс сомасы
+                            </p>
+
+                            <p class="font-bold text-emerald-700
+                                      text-lg">
+                                {{ order.total_price }} ₸
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-slate-100
+                                pt-4 space-y-3">
+
+                        <a href="tel:{{ order.phone }}"
+                           class="block text-center
+                                  bg-emerald-600 hover:bg-emerald-700
+                                  text-white font-bold rounded-xl
+                                  py-3 transition">
+                            Клиентке қоңырау шалу
+                        </a>
+
+                       
+<button
+    type="button"
+    data-order-id="{{ order.id }}"
+    onclick="startGPS(Number(this.dataset.orderId))"
+    class="w-full bg-blue-600
+           hover:bg-blue-700 text-white
+           font-bold rounded-xl py-3">
+    GPS бақылауды бастау
+</button>
+
+
+                        <button
+                            type="button"
+                            onclick="stopGPS()"
+                            class="w-full bg-red-50
+                                   hover:bg-red-100 text-red-600
+                                   font-bold rounded-xl py-3">
+                            GPS бақылауды тоқтату
+                        </button>
+
+                        <p id="gpsStatus-{{ order.id }}"
+                           class="text-xs text-slate-500"
+                           aria-live="polite">
+                            GPS өшірулі
+                        </p>
+                    </div>
+                </article>
+
+                {% empty %}
+
+                <div class="md:col-span-2 bg-white
+                            border border-slate-200
+                            rounded-3xl p-12 text-center">
+
+                    <div class="text-4xl mb-4">
+                        &#128230;
+                    </div>
+
+                    <h3 class="text-lg font-bold text-slate-700">
+                        Белсенді тапсырыс жоқ
+                    </h3>
+
+                    <p class="text-sm text-slate-500 mt-2">
+                        Администратор сізге тапсырыс
+                        тағайындаған кезде осы жерде пайда болады.
+                    </p>
+                </div>
+
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let gpsWatchId = null;
+        let activeOrderId = null;
+        let lastSent = 0;
+        let sending = false;
+
+        let courierMap = null;
+        let courierMarker = null;
+
+        const csrfToken = document.querySelector(
+            "[name=csrfmiddlewaretoken]"
+        ).value;
+
+        // Картаны іске қосу
+       
+
+
+function initializeMap() {
+    const status = document.getElementById("globalGpsStatus");
+    if (!window.maplibregl) {
+        status.textContent = "MapLibre кітапханасы жүктелмеді. Интернетті тексеріңіз.";
+        return;
+    }
+
+    try {
+        courierMap = new maplibregl.Map({
+            container: "courierMap",
+            style: "https://tiles.openfreemap.org/styles/liberty",
+            center: [71.3667, 42.9000], // [бойлық, ендік] — Тараз (бастапқы нүкте)
+            zoom: 12
+        });
+        courierMap.addControl(new maplibregl.NavigationControl(), "top-left");
+        courierMap.on("error", (event) => {
+            console.error("Карта қатесі:", event.error);
+            if (status && activeOrderId === null) {
+                status.textContent = "Карта жүктелмеді. Интернетті немесе F12 → Console бөлімін тексеріңіз.";
+            }
+        });
+    } catch (error) {
+        console.error("MapLibre іске қосылмады:", error);
+        if (status) status.textContent = "Карта іске қосылмады: " + error.message;
+    }
+}
+
+
+
+        function showGPSStatus(orderId, message) {
+            const element = document.getElementById(
+                `gpsStatus-${orderId}`
+            );
+
+            if (element) {
+                element.textContent = message;
+            }
+
+            document.getElementById(
+                "globalGpsStatus"
+            ).textContent = message;
+        }
+
+        function updateGPSBadge(active) {
+            const badge = document.getElementById("gpsBadge");
+            const indicator = document.getElementById(
+                "gpsIndicator"
+            );
+            const text = document.getElementById(
+                "gpsBadgeText"
+            );
+
+            if (active) {
+                badge.className =
+                    "flex items-center gap-2 bg-emerald-50 " +
+                    "text-emerald-700 px-4 py-2 rounded-full " +
+                    "text-xs font-bold";
+
+                indicator.className = "gps-pulse";
+                text.textContent = "GPS қосулы";
+            } else {
+                badge.className =
+                    "flex items-center gap-2 bg-slate-100 " +
+                    "text-slate-600 px-4 py-2 rounded-full " +
+                    "text-xs font-bold";
+
+                indicator.className =
+                    "w-2.5 h-2.5 rounded-full bg-slate-400";
+
+                text.textContent = "GPS өшірулі";
+            }
+        }
+
+        function updateCourierMarker(latitude, longitude) {
+    if (!courierMap || !window.maplibregl) return;
+
+    // MapLibre [longitude, latitude] ретін қолданады.
+    const position = [longitude, latitude];
+
+    if (courierMarker) {
+        courierMarker.setLngLat(position);
+    } else {
+        courierMarker = new maplibregl.Marker({ color: "#059669" })
+            .setLngLat(position)
+            .setPopup(new maplibregl.Popup().setText("Менің орналасқан жерім"))
+            .addTo(courierMap);
+    }
+
+    courierMap.flyTo({ center: position, zoom: 16, essential: true });
+}
+
+        function startGPS(orderId) {
+            if (!navigator.geolocation) {
+                showGPSStatus(
+                    orderId,
+                    "Бұл құрылғыда GPS қолжетімсіз."
+                );
+                return;
+            }
+
+            stopGPS();
+
+            activeOrderId = orderId;
+            lastSent = 0;
+
+            showGPSStatus(
+                orderId,
+                "GPS рұқсаты сұралуда..."
+            );
+
+            gpsWatchId = navigator.geolocation.watchPosition(
+                async (position) => {
+                    if (activeOrderId !== orderId) return;
+
+                    const latitude =
+                        position.coords.latitude;
+
+                    const longitude =
+                        position.coords.longitude;
+
+                    document.getElementById(
+                        "latitudeValue"
+                    ).textContent = latitude.toFixed(6);
+
+                    document.getElementById(
+                        "longitudeValue"
+                    ).textContent = longitude.toFixed(6);
+
+                    updateCourierMarker(
+                        latitude,
+                        longitude
+                    );
+
+                    const now = Date.now();
+
+                    if (now - lastSent < 5000 || sending) {
+                        return;
+                    }
+
+                    sending = true;
+
+                    try {
+                        const response = await fetch(
+                            `/api/orders/${orderId}/location/`,
+                            {
+                                method: "POST",
+                                credentials: "same-origin",
+                                headers: {
+                                    "Content-Type":
+                                        "application/json",
+                                    "X-CSRFToken":
+                                        csrfToken
+                                },
+                                body: JSON.stringify({
+                                    latitude: latitude,
+                                    longitude: longitude
+                                })
+                            }
+                        );
+
+                        const result = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(
+                                result.error ||
+                                "Сервер қатесі"
+                            );
+                        }
+
+                        lastSent = Date.now();
+
+                        const timeText =
+                            new Date().toLocaleTimeString(
+                                "kk-KZ"
+                            );
+
+                        document.getElementById(
+                            "lastUpdateValue"
+                        ).textContent = timeText;
+
+                        showGPSStatus(
+                            orderId,
+                            "GPS орны серверге сақталды: " +
+                            latitude.toFixed(5) + ", " +
+                            longitude.toFixed(5)
+                        );
+
+                        updateGPSBadge(true);
+
+                    } catch (error) {
+                        showGPSStatus(
+                            orderId,
+                            "GPS жіберу қатесі: " +
+                            error.message
+                        );
+
+                    } finally {
+                        sending = false;
+                    }
+                },
+
+                (error) => {
+                    const errors = {
+                        1: "Геолокацияға рұқсат берілмеді.",
+                        2: "Орналасқан жер анықталмады.",
+                        3: "GPS сұранысының уақыты аяқталды."
+                    };
+
+                    showGPSStatus(
+                        orderId,
+                        errors[error.code] ||
+                        "GPS қатесі пайда болды."
+                    );
+
+                    updateGPSBadge(false);
+                },
+
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 0,
+                    timeout: 15000
+                }
+            );
+        }
+
+        function stopGPS() {
+            if (gpsWatchId !== null) {
+                navigator.geolocation.clearWatch(
+                    gpsWatchId
+                );
+                gpsWatchId = null;
+            }
+
+            if (activeOrderId !== null) {
+                showGPSStatus(
+                    activeOrderId,
+                    "GPS бақылау тоқтатылды"
+                );
+            }
+
+            activeOrderId = null;
+            lastSent = 0;
+
+            updateGPSBadge(false);
+        }
+
+        window.addEventListener(
+            "DOMContentLoaded",
+            initializeMap
+        );
+
+        window.addEventListener(
+            "pagehide",
+            stopGPS
+        );
+    </script>
+</body>
+</html>

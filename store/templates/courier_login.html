@@ -1,0 +1,94 @@
+
+<!DOCTYPE html>
+<html lang="kk">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>PharmaCare Pro | Курьер</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+
+    <div class="bg-white w-full max-w-md rounded-3xl shadow-xl p-8">
+
+        <div class="text-center mb-8">
+
+            <div class="w-16 h-16 bg-emerald-100 text-emerald-700 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl">
+                &#128138;
+            </div>
+
+            <h1 class="text-2xl font-extrabold text-emerald-700">
+                PharmaCare Pro
+            </h1>
+
+            <p class="text-sm text-slate-500 mt-2">
+                Курьердің жеке кабинетіне кіру
+            </p>
+
+        </div>
+
+        {% if error %}
+        <div class="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl text-sm mb-5">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <form method="POST" class="space-y-5">
+
+            {% csrf_token %}
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">
+                    Логин
+                </label>
+
+                <input
+                    type="text"
+                    name="username"
+                    placeholder="Курьер логині"
+                    autocomplete="username"
+                    required
+                    class="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">
+                    Құпиясөз
+                </label>
+
+                <input
+                    type="password"
+                    name="password"
+                    placeholder="Құпиясөзді енгізіңіз"
+                    autocomplete="current-password"
+                    required
+                    class="w-full border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+            </div>
+
+            <button
+                type="submit"
+                class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl transition shadow-lg"
+            >
+                Жүйеге кіру
+            </button>
+
+        </form>
+
+        <div class="text-center mt-7">
+            <a href="{% url 'pharmacy_home' %}"
+               class="text-sm text-slate-500 hover:text-emerald-600">
+                Дәріхананың басты бетіне қайту
+            </a>
+        </div>
+
+    </div>
+
+</body>
+</html>
